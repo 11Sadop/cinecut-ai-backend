@@ -48,6 +48,27 @@ def get_whisper_model():
         print("Error loading Whisper:", e)
     return whisper_model
 
+# ─────────────────────────────────────────
+#  Load Demucs dynamically (Local Only)
+# ─────────────────────────────────────────
+demucs_model = None
+
+def get_demucs_model():
+    global demucs_model
+    if IS_CLOUD:
+        return None
+    if demucs_model is not None:
+        return demucs_model
+    
+    try:
+        from demucs.pretrained import get_model
+        demucs_model = get_model("htdemucs_ft")
+        demucs_model.eval()
+        print("✅ Loaded Demucs model successfully.")
+    except Exception as e:
+        print("Error loading Demucs:", e)
+    return demucs_model
+
 TEMP_DIR = tempfile.gettempdir()
 
 # Arabic Phonetic & Dialect Lyric Normalizer Dictionary
@@ -141,7 +162,7 @@ def to_stereo_wav_44k(input_path: str) -> str:
 # ─────────────────────────────────────────
 #  FastAPI App
 # ─────────────────────────────────────────
-app = FastAPI(title="CineCut AI Engine – Pure Neural Cloud Separation")
+app = FastAPI(title="CineCut AI Engine – Cloud Optimized")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -170,7 +191,7 @@ def health():
     return JSONResponse({
         "status": "ok",
         "whisper": "Google STT Cloud API" if IS_CLOUD else "Whisper medium (local)",
-        "demucs": "htdemucs (cloud/local)" if IS_CLOUD else "htdemucs_ft (local)",
+        "demucs": "Advanced DSP Spectral Subtraction (cloud)" if IS_CLOUD else "htdemucs_ft (local)",
         "speech_recognition": "Google STT AI Ready",
     }, headers=NO_CACHE_HEADERS)
 
@@ -281,63 +302,48 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
     if wav_path is None or not os.path.isfile(wav_path):
         raise HTTPException(500, "تعذر تحويل الملف الصوتي")
 
-    # Neural Isolation (Supports standard Demucs in cloud, Fine-Tuned locally)
-    try:
-        import soundfile as sf
-        import torch
-        from demucs.apply import apply_model
-        from demucs.pretrained import get_model
+    # Local Mode: Use Demucs Neural Model
+    if not IS_CLOUD:
+        try:
+            import soundfile as sf
+            import torch
+            from demucs.apply import apply_model
+            
+            model = get_demucs_model()
+            if model is not None:
+                data, samplerate = sf.read(wav_path)
+                if len(data.shape) == 1:
+                    data = np.column_stack((data, data))
+                data = data.astype(np.float32)
+                
+                waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0)
 
-        # Limit memory during execution
-        torch.set_num_threads(2)
+                with torch.no_grad():
+                    sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
 
-        model_name = "htdemucs" if IS_CLOUD else "htdemucs_ft"
-        print(f"Loading {model_name} model dynamically...")
-        
-        # Load model dynamically
-        model = get_model(model_name)
-        model.eval()
+                source_names = list(model.sources)
+                vocals_idx   = source_names.index("vocals")
+                music_indices = [i for i in range(len(source_names)) if i != vocals_idx]
 
-        data, samplerate = sf.read(wav_path)
-        if len(data.shape) == 1:
-            data = np.column_stack((data, data))
-        data = data.astype(np.float32)
-        
-        waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0)
+                demucs_vocals = sources[vocals_idx].cpu().numpy().T
+                music_stems   = sum(sources[i] for i in music_indices).cpu().numpy().T
 
-        with torch.no_grad():
-            sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
+                # Normalize
+                v_max = np.max(np.abs(demucs_vocals))
+                m_max = np.max(np.abs(music_stems))
+                if v_max > 0:
+                    demucs_vocals = demucs_vocals / v_max * 0.95
+                if m_max > 0:
+                    music_stems  = music_stems  / m_max * 0.95
 
-        source_names = list(model.sources)
-        vocals_idx   = source_names.index("vocals")
-        music_indices = [i for i in range(len(source_names)) if i != vocals_idx]
+                sf.write(vocals_out, demucs_vocals.astype(np.float32), model.samplerate)
+                sf.write(music_out,  music_stems.astype(np.float32),   model.samplerate)
+                print("✅ Demucs local separation complete.")
+        except Exception as e:
+            print("Demucs error, falling back to SciPy:", e)
 
-        demucs_vocals = sources[vocals_idx].cpu().numpy().T
-        music_stems   = sum(sources[i] for i in music_indices).cpu().numpy().T
-
-        # Normalize
-        v_max = np.max(np.abs(demucs_vocals))
-        m_max = np.max(np.abs(music_stems))
-        if v_max > 0:
-            demucs_vocals = demucs_vocals / v_max * 0.95
-        if m_max > 0:
-            music_stems  = music_stems  / m_max * 0.95
-
-        sf.write(vocals_out, demucs_vocals.astype(np.float32), model.samplerate)
-        sf.write(music_out,  music_stems.astype(np.float32),   model.samplerate)
-        print("✅ Demucs neural separation complete (Cloud/Local).")
-
-        # Delete from memory immediately to prevent memory leak
-        del model
-        del sources
-        del waveform
-        gc.collect()
-
-    except Exception as e:
-        print("Demucs dynamic error, falling back to SciPy STFT:", e)
-
-    # Cloud Fallback: SciPy STFT (Uses <15MB RAM total!)
-    if not os.path.isfile(vocals_out):
+    # Cloud Mode: Advanced DSP Spectral Subtraction & Noise Gate (Uses <15MB RAM, 100% stable on Render!)
+    if IS_CLOUD or not os.path.isfile(vocals_out):
         try:
             import soundfile as sf
             from scipy import signal as sig
@@ -346,29 +352,45 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                 data = np.column_stack((data, data))
             data = data.astype(np.float32)
 
-            L, R = data[:, 0], data[:, 1]
+            L = data[:, 0]
+            R = data[:, 1]
+            mid  = (L + R) / 2.0
+            side = (L - R) / 2.0
+
             f, t, ZL = sig.stft(L, fs=samplerate, nperseg=2048)
             _, _, ZR = sig.stft(R, fs=samplerate, nperseg=2048)
 
-            mid  = (ZL + ZR) / 2.0
-            side = (ZL - ZR) / 2.0
+            Z_mid  = (ZL + ZR) / 2.0
+            Z_side = (ZL - ZR) / 2.0
 
-            freq_mask = (f >= 200) & (f <= 3800)
-            vocal_stft = np.zeros_like(mid)
-            vocal_stft[freq_mask] = mid[freq_mask] * 2.0
+            mag_mid  = np.abs(Z_mid)
+            mag_side = np.abs(Z_side)
 
-            music_stft = side.copy()
-            music_stft[~freq_mask] += mid[~freq_mask]
+            # Cancel and subtract stereo instruments from mid channel
+            mag_vocals = np.maximum(0, mag_mid - 1.5 * mag_side)
 
+            # Apply Vocal Bandpass (250Hz - 3400Hz) inside STFT
+            for i, freq in enumerate(f):
+                if freq < 250 or freq > 3400:
+                    mag_vocals[i, :] *= 0.02
+
+            # Reconstruct vocals STFT
+            vocal_stft = mag_vocals * np.exp(1j * np.angle(Z_mid))
             _, v = sig.istft(vocal_stft, fs=samplerate)
+
+            # Reconstruct music STFT (Stereo instruments + low/high pass bands)
+            music_stft = Z_side.copy()
+            music_stft[f < 250, :] += Z_mid[f < 250, :]
+            music_stft[f > 3400, :] += Z_mid[f > 3400, :]
             _, m = sig.istft(music_stft, fs=samplerate)
 
+            # Normalize output cleanly
             v = v / (np.max(np.abs(v)) + 1e-6) * 0.95
             m = m / (np.max(np.abs(m)) + 1e-6) * 0.95
 
             sf.write(vocals_out, v.astype(np.float32), samplerate)
             sf.write(music_out,  m.astype(np.float32), samplerate)
-            print("✅ SciPy STFT Cloud separation complete.")
+            print("✅ Advanced DSP Spectral Subtraction complete.")
         except Exception as e:
             print("SciPy error:", e)
             raise HTTPException(500, f"Separation failed: {e}")
