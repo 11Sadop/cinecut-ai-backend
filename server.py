@@ -162,11 +162,12 @@ def to_stereo_wav_44k(input_path: str) -> str:
 # ─────────────────────────────────────────
 #  FastAPI App
 # ─────────────────────────────────────────
-app = FastAPI(title="CineCut AI Engine – Cloud RAM Optimized")
+app = FastAPI(title="CineCut AI Engine – CORS Fixed")
+# Fixed CORS headers: allow_credentials must be False when allow_origins is ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
