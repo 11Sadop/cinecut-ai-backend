@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CineCut AI Pro Ultimate | استوديو المونتاج والتوليد الصوتي والذكاء الاصطناعي</title>
+  <!-- Google Fonts: Cairo, Amiri, Almarai, Changa, Tajawal, Reem Kufi, Lalezar, Kufam, El Messiri, Aref Ruqaa, Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@300;400;600;700;800;900&family=Changa:wght@400;600;700;800&family=El+Messiri:wght@400;600;700&family=Kufam:ital,wght@0,400;0,700;1,400&family=Lalezar&family=Outfit:wght@400;600;700;800&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- CapCut Style CSS -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="capcut-dark-theme">
+
+  <div id="app" class="capcut-container">
+    
+    <!-- TOP NAVBAR (Responsive CapCut Header) -->
+    <header class="capcut-header">
+      <div class="header-right-group">
+        <button class="mobile-toggle-btn" id="btn-toggle-mobile-sidebar" title="القائمة"><i class="fa-solid fa-bars"></i></button>
+        <div class="capcut-logo">
+          <div class="logo-icon-box"><i class="fa-solid fa-clapperboard"></i></div>
+          <span class="logo-title">CineCut <span class="badge-pro">ULTIMATE</span></span>
+        </div>
+        <nav class="top-menu hide-mobile">
+          <span class="menu-item">مشروع جديد</span>
+          <span class="menu-item active">تعديل</span>
+          <span class="menu-item">الذكاء الاصطناعي</span>
+          <span class="menu-item">الأصوات الذكية</span>
+        </nav>
+      </div>
+
+      <div class="header-center-group hide-mobile">
+        <div class="project-title-box">
+          <i class="fa-solid fa-pen-to-square"></i>
+          <span contenteditable="true" id="project-name-input">مشروع مونتاج الاحترافي</span>
+        </div>
+
+        <div class="aspect-selector-box">
+          <i class="fa-solid fa-crop-simple"></i>
+          <select id="aspect-ratio-select">
+            <option value="16:9" selected>🖥️ 16:9 (YouTube)</option>
+            <option value="9:16">📱 9:16 (TikTok / Reels)</option>
+            <option value="1:1">🔲 1:1 (Instagram)</option>
+            <option value="4:5">📐 4:5 (Portrait)</option>
+          </select>
+        </div>
+
+        <div class="ai-status-pill">
+          <span class="pulse-green"></span>
+          <span id="ai-engine-status">محرك الذكاء الاصطناعي والصوتي: جاهز</span>
+        </div>
+      </div>
+
+      <div class="header-left-group">
+        <button class="btn btn-dark-outline hide-mobile" id="btn-sample-demo"><i class="fa-solid fa-wand-sparkles"></i> عينة تجريبية</button>
+        <button class="btn btn-capcut-cyan" id="btn-export-video"><i class="fa-solid fa-arrow-up-from-bracket"></i> تصدير (4K)</button>
+      </div>
+    </header>
+
+    <!-- MAIN STUDIO EDITING AREA -->
+    <main class="capcut-main-workspace">
+      
+      <!-- LEFT ASSETS & TOOLS PANEL -->
+      <aside class="capcut-left-panel" id="left-sidebar-panel">
+        
+        <!-- SIDEBAR TAB ICONS -->
+        <nav class="capcut-nav-tabs">
+          <button class="nav-tab-btn active" data-tab="tab-media" title="الميديا والوسائط">
+            <i class="fa-solid fa-folder-open"></i>
+            <span>الميديا</span>
+          </button>
+
+          <button class="nav-tab-btn" data-tab="tab-tts" title="توليد الأصوات الذكية (AI Voice)">
+            <i class="fa-solid fa-headset text-gold"></i>
+            <span>أصوات AI</span>
+          </button>
+
+          <button class="nav-tab-btn" data-tab="tab-text-anim" title="الخطوط المتحركة">
+            <i class="fa-solid fa-font"></i>
+            <span>خطوط متحركة</span>
+          </button>
+
+          <button class="nav-tab-btn" data-tab="tab-stt" title="استخراج النص (Whisper STT)">
+            <i class="fa-solid fa-closed-captioning"></i>
+            <span>استخراج النص</span>
+          </button>
+
+          <button class="nav-tab-btn" data-tab="tab-stem" title="فصل الصوت والموسيقى">
+            <i class="fa-solid fa-sliders"></i>
+            <span>فصل الموسيقى</span>
+          </button>
+
+          <button class="nav-tab-btn" data-tab="tab-ai-suite" title="ترقية الجودة 4K">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>ترقية الجودة</span>
+          </button>
+
+          <button class="nav-tab-btn" data-tab="tab-filters" title="الفلاتر السينمائية">
+            <i class="fa-solid fa-photo-film"></i>
+            <span>الفلاتر</span>
+          </button>
+
+          <button class="nav-tab-btn" data-tab="tab-fx" title="المؤثرات والتأثيرات">
+            <i class="fa-solid fa-sparkles"></i>
+            <span>المؤثرات</span>
+          </button>
+        </nav>
+
+        <!-- PANEL CONTENT AREA -->
+        <div class="capcut-tab-body">
+          
+          <!-- 1. MEDIA TAB -->
+          <div class="tab-content active" id="tab-media">
+            <div class="tab-header">
+              <h4>مكتبة الميديا والوسائط</h4>
+            </div>
+            <div class="capcut-upload-box" id="dropzone">
+              <i class="fa-solid fa-cloud-arrow-up upload-ico"></i>
+              <p>اسحب الفيديو أو الصوت هنا</p>
+              <span>يدعم MP4, MOV, MP3, WAV</span>
+              <input type="file" id="media-file-input" accept="video/*,audio/*" style="display:none;">
+              <button class="btn btn-capcut-sm" onclick="document.getElementById('media-file-input').click()"><i class="fa-solid fa-plus"></i> استيراد ملفات</button>
+            </div>
+            <div class="media-library-grid" id="media-items-grid">
+              <!-- Uploaded Media items injected here -->
+            </div>
+          </div>
+
+          <!-- 2. AI TEXT-TO-SPEECH (TTS) VOICE GENERATOR (توليد الأصوات بالذكاء الاصطناعي) -->
+          <div class="tab-content" id="tab-tts">
+            <div class="tab-header">
+              <h4>توليد الأصوات بالذكاء الاصطناعي (AI Voice Generator)</h4>
+              <p>اكتب أي نص لتحويله فوراً إلى تعليق صوتي بشري واقعي بمختلف الأصوات.</p>
+            </div>
+
+            <div class="form-group">
+              <label>النص المراد نطقة بصوت AI:</label>
+              <textarea id="tts-input-text" class="capcut-textarea" rows="3" placeholder="أدخل النص هنا... مثال: مرحباً بكم في تطبيق المونتاج الذكي CineCut AI Pro"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>اختر الصوت والمعلق الذكي:</label>
+              <select id="tts-voice-select" class="capcut-select">
+                <option value="ar-cinematic-male">🎙️ صوت سينمائي فخم (Arabic Deep Male)</option>
+                <option value="ar-elegant-female" selected>🎙️ صوت أنثوي ناعم (Arabic Soft Female)</option>
+                <option value="ar-news-anchor">🎙️ معلق إخباري احترافي (Arabic News Anchor)</option>
+                <option value="ar-energetic-radio">🎙️ صوت راديو حماسي (Arabic Energetic)</option>
+                <option value="en-natural-voice">🇬🇧 English Natural Voiceover (US/UK)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <div class="slider-row">
+                <span class="lbl">السرعة:</span>
+                <input type="range" class="capcut-slider" id="tts-rate-slider" min="0.5" max="1.5" step="0.1" value="1.0">
+                <span class="val-txt" id="tts-rate-val">1.0x</span>
+              </div>
+              <div class="slider-row">
+                <span class="lbl">الطبقة:</span>
+                <input type="range" class="capcut-slider" id="tts-pitch-slider" min="0.5" max="1.5" step="0.1" value="1.0">
+                <span class="val-txt" id="tts-pitch-val">1.0</span>
+              </div>
+            </div>
+
+            <div class="tts-action-buttons">
+              <button class="btn btn-dark-outline btn-full" id="btn-preview-tts-audio">
+                <i class="fa-solid fa-volume-high"></i> الاستماع للمعاينة
+              </button>
+              <button class="btn btn-capcut-cyan btn-full margin-top-sm" id="btn-generate-tts-timeline">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> توليد وإضافة الصوت للشريط الزمني
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. TYPOGRAPHY & FONT DESIGN STUDIO (كتابة وتصميم النصوص والخطوط) -->
+          <div class="tab-content" id="tab-text-anim">
+            <div class="tab-header">
+              <h4>كتابة وتصميم النصوص (Typography & Font Studio)</h4>
+              <p>إضافة عناوين وكابشن واختيار أنواع الخطوط العربية والحركات الاحترافية.</p>
+            </div>
+
+            <div class="form-group">
+              <label>النص المراد كتابته وإضافته:</label>
+              <textarea id="custom-text-input" class="capcut-textarea" rows="2" placeholder="أدخل النص هنا... مثال: شفت خلي يقول"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>اختر نوع الخط (Font Family):</label>
+              <select id="text-font-family" class="capcut-select" style="font-size:1.05rem;">
+                <option value="Cairo" style="font-family:'Cairo';" selected>✨ القاهرة - Cairo (مودرن أنيق)</option>
+                <option value="Amiri" style="font-family:'Amiri';">📜 الأميري - Amiri (كلاسيكي سينمائي)</option>
+                <option value="Almarai" style="font-family:'Almarai';">📱 المراعي - Almarai (حديث وواضح)</option>
+                <option value="Changa" style="font-family:'Changa';">💥 تشانجا - Changa (عريض بارز)</option>
+                <option value="Tajawal" style="font-family:'Tajawal';">💎 تجول - Tajawal (ناعم فاخر)</option>
+                <option value="Lalezar" style="font-family:'Lalezar';">👑 لاليزار - Lalezar (عناوين عريضة)</option>
+                <option value="Reem Kufi" style="font-family:'Reem Kufi';">✒️ ريم كوفي - Reem Kufi (عريق)</option>
+                <option value="Aref Ruqaa" style="font-family:'Aref Ruqaa';">✍️ رقعة - Aref Ruqaa (خط رقعة أصيل)</option>
+                <option value="El Messiri" style="font-family:'El Messiri';">🎨 المسيري - El Messiri (فني مميز)</option>
+                <option value="Kufam" style="font-family:'Kufam';">📐 كوفام - Kufam (كوفي حديث)</option>
+                <option value="Outfit" style="font-family:'Outfit';">🇬🇧 Outfit (English Modern Sans)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <div class="slider-row">
+                <span class="lbl">حجم الخط:</span>
+                <input type="range" class="capcut-slider" id="text-size-slider" min="18" max="72" value="36">
+                <span class="val-txt" id="text-size-val">36px</span>
+              </div>
+            </div>
+
+            <div class="form-group" style="display:flex; gap:10px; align-items:center;">
+              <div style="flex:1;">
+                <label>لون الخط:</label>
+                <input type="color" id="text-color-picker" class="capcut-color-picker" value="#ffffff" style="width:100%;height:38px;border-radius:6px;border:1px solid #333;cursor:pointer;background:#111;">
+              </div>
+              <div style="flex:1;">
+                <label>خلفية النص:</label>
+                <input type="color" id="text-bg-picker" class="capcut-color-picker" value="#000000" style="width:100%;height:38px;border-radius:6px;border:1px solid #333;cursor:pointer;background:#111;">
+              </div>
+            </div>
+
+            <h5 class="sub-label">اختر نوع حركة النص (Animation):</h5>
+            <div class="text-anim-grid" id="text-anim-selector">
+              <div class="anim-card active" data-anim="pop-word">
+                <div class="anim-demo pop-effect">POP!</div>
+                <span>قفز الكلمات (Pop)</span>
+              </div>
+              <div class="anim-card" data-anim="karaoke-glow">
+                <div class="anim-demo karaoke-effect">GLOW</div>
+                <span>إيقاع النيون (Glow)</span>
+              </div>
+              <div class="anim-card" data-anim="slide-up">
+                <div class="anim-demo slide-effect">SLIDE</div>
+                <span>صعود احترافي (Slide)</span>
+              </div>
+              <div class="anim-card" data-anim="typewriter-fade">
+                <div class="anim-demo type-effect">TYPE</div>
+                <span>آلة كاتبة (Typewriter)</span>
+              </div>
+              <div class="anim-card" data-anim="bounce-letter">
+                <div class="anim-demo bounce-effect">BOUNCE</div>
+                <span>ارتداد الأحرف (Bounce)</span>
+              </div>
+              <div class="anim-card" data-anim="glitch-shift">
+                <div class="anim-demo glitch-effect">GLITCH</div>
+                <span>تشويش سايبر (Glitch Shift)</span>
+              </div>
+            </div>
+
+            <button class="btn btn-capcut-cyan btn-full" id="btn-add-animated-text">
+              <i class="fa-solid fa-plus"></i> إضافة النص المتحرك للشريط الزمني
+            </button>
+          </div>
+
+          <!-- 4. WHISPER SPEECH TO TEXT TAB -->
+          <div class="tab-content" id="tab-stt">
+            <div class="tab-header">
+              <h4>استخراج النص المطابق 100% (Whisper AI)</h4>
+              <p>يستخرج النص بدقة متناهية دون حذف أي كلمة مع التوقيت المظبوط.</p>
+            </div>
+
+            <div class="capcut-card-box">
+              <div class="form-group">
+                <label>لغة الفيديو:</label>
+                <select id="stt-language" class="capcut-select">
+                  <option value="ar" selected>العربية (جميع اللهجات - المطابقة التامة)</option>
+                  <option value="en">الإنجليزية (English Verbatim)</option>
+                  <option value="auto">تلقائي (Auto Detect)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>نمط الكابشن المتحرك:</label>
+                <select id="stt-caption-style" class="capcut-select">
+                  <option value="pop-word" selected>✨ قفز الكلمات الملونة (CapCut Kinetic Pop)</option>
+                  <option value="karaoke-glow">🎤 كاريوكي نيون (Karaoke Neon Glow)</option>
+                  <option value="typewriter-fade">⌨️ آلة كاتبة سينمائية (Cinematic Typewriter)</option>
+                </select>
+              </div>
+
+              <button class="btn btn-capcut-cyan btn-full" id="btn-run-stt">
+                <i class="fa-solid fa-microchip"></i> استخراج النص والكابشن الآن
+              </button>
+            </div>
+
+            <div class="stt-output-box" id="stt-results-container" style="display:none;">
+              <div class="stt-actions">
+                <span>النص المستخرج:</span>
+                <div>
+                  <button class="btn-icon-sm" id="btn-copy-stt" title="نسخ النص"><i class="fa-solid fa-copy"></i></button>
+                  <button class="btn-icon-sm" id="btn-export-srt" title="تصدير SRT"><i class="fa-solid fa-file-arrow-down"></i> SRT</button>
+                </div>
+              </div>
+              <div class="transcript-editor" id="stt-transcript-box" contenteditable="true"></div>
+              <button class="btn btn-capcut-green btn-full margin-top-sm" id="btn-apply-captions-timeline">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> وضع الكابشن المتحرك على الفيديو
+              </button>
+            </div>
+          </div>
+
+          <!-- 5. AUDIO & DEMUCS STEM TAB -->
+          <div class="tab-content" id="tab-stem">
+            <div class="tab-header">
+              <h4>فصل وتصفية الصوت (Meta Demucs)</h4>
+              <p>عزل الصوت البشري عن الموسيقى والآلات وتصفية الضوضاء.</p>
+            </div>
+
+            <div class="capcut-card-box">
+              <button class="btn btn-capcut-cyan btn-full" id="btn-run-stem-separation">
+                <i class="fa-solid fa-diagram-project"></i> البدء بفصل الصوت عن الموسيقى
+              </button>
+            </div>
+
+            <div class="stem-channels-box" id="stem-controls-container" style="display:none;">
+              <div class="stem-item">
+                <div class="stem-label"><i class="fa-solid fa-user text-cyan"></i> الصوت البشري النقي (Vocals Only)</div>
+                <input type="range" class="capcut-slider" id="stem-vol-vocals" min="0" max="200" value="100">
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                  <button class="btn btn-cyan btn-sm" id="btn-play-vocals"><i class="fa-solid fa-play"></i> تشغيل</button>
+                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-vocals" href="http://127.0.0.1:5000/api/stem/vocals" download="vocals_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+                </div>
+              </div>
+
+              <div class="stem-item" style="margin-top:12px;">
+                <div class="stem-label"><i class="fa-solid fa-music text-purple"></i> الموسيقى فقط (Music Only)</div>
+                <input type="range" class="capcut-slider" id="stem-vol-music" min="0" max="200" value="100">
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                  <button class="btn btn-purple btn-sm" id="btn-play-music"><i class="fa-solid fa-play"></i> تشغيل</button>
+                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-music" href="http://127.0.0.1:5000/api/stem/music" download="music_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+                </div>
+              </div>
+
+              <div style="margin-top:14px; text-align:center;">
+                <button class="btn btn-danger btn-sm btn-full" id="btn-stop-stem" style="display:none; background:#ff4d4d; color:#fff;">
+                  <i class="fa-solid fa-square"></i> إيقاف تشغيل الصوت الحالي
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. AI QUALITY UPSCALER TAB -->
+          <div class="tab-content" id="tab-ai-suite">
+            <div class="tab-header">
+              <h4>رفع وتفتيح الجودة (AI Quality Enhancer)</h4>
+              <p>معالجة الإضاءة المنخفضة والترقية إلى 4K فائقة الوضوح.</p>
+            </div>
+
+            <div class="capcut-card-box">
+              <div class="toggle-row">
+                <div>
+                  <strong><i class="fa-solid fa-bolt text-gold"></i> ترقية الجودة 4K AI Upscale</strong>
+                  <span>توضيح الإطارات والتفاصيل</span>
+                </div>
+                <label class="capcut-switch"><input type="checkbox" id="chk-upscale-4k" checked><span class="switch-slider"></span></label>
+              </div>
+
+              <div class="toggle-row">
+                <div>
+                  <strong><i class="fa-solid fa-sun text-orange"></i> إصلاح الإضاءة (Low-Light Fix)</strong>
+                  <span>تفتيح المشاهد المظلمة</span>
+                </div>
+                <label class="capcut-switch"><input type="checkbox" id="chk-lowlight-boost" checked><span class="switch-slider"></span></label>
+              </div>
+
+              <div class="toggle-row">
+                <div>
+                  <strong><i class="fa-solid fa-palette text-cyan"></i> تحسين الألوان (HDR Color Boost)</strong>
+                  <span>تشبع سينمائي غني</span>
+                </div>
+                <label class="capcut-switch"><input type="checkbox" id="chk-hdr-boost" checked><span class="switch-slider"></span></label>
+              </div>
+
+              <button class="btn btn-capcut-cyan btn-full margin-top-sm" id="btn-apply-upscaling">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> تطبيق ترقية الجودة الان
+              </button>
+            </div>
+          </div>
+
+          <!-- 7. CINEMATIC FILTERS TAB -->
+          <div class="tab-content" id="tab-filters">
+            <div class="tab-header">
+              <h4>الفلاتر والتدرجات السينمائية (Cinematic LUTs)</h4>
+              <p>تدرجات ألوان احترافية لتحسين مظاهر المشاهد.</p>
+            </div>
+
+            <div class="filters-grid" id="lut-filters-selector">
+              <div class="filter-card active" data-filter="normal">
+                <div class="filter-thumb filter-normal"></div>
+                <span>عادي (Normal)</span>
+              </div>
+              <div class="filter-card" data-filter="moody-dark">
+                <div class="filter-thumb filter-moody"></div>
+                <span>مظلم سينمائي (Moody Dark)</span>
+              </div>
+              <div class="filter-card" data-filter="cyber-neon">
+                <div class="filter-thumb filter-cyber"></div>
+                <span>سايبر نيون (Cyber Neon)</span>
+              </div>
+              <div class="filter-card" data-filter="vintage-film">
+                <div class="filter-thumb filter-vintage"></div>
+                <span>فيلم كلاسيك (Vintage Film)</span>
+              </div>
+              <div class="filter-card" data-filter="warm-sunset">
+                <div class="filter-thumb filter-warm"></div>
+                <span>غروب دافئ (Warm Sunset)</span>
+              </div>
+              <div class="filter-card" data-filter="noir-bw">
+                <div class="filter-thumb filter-noir"></div>
+                <span>أسود وأبيض (Noir B&W)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 8. EXPANDED VISUAL FX TAB (مكتبة المؤثرات الشاملة) -->
+          <div class="tab-content" id="tab-fx">
+            <div class="tab-header">
+              <h4>المؤثرات والتأثيرات السينمائية الموسعة</h4>
+            </div>
+
+            <div class="fx-grid" id="fx-selector">
+              <div class="fx-item-card" data-fx="earthquake-shake">
+                <i class="fa-solid fa-hand-shake fx-ico text-gold"></i>
+                <span>اهتزاز الزلزال (Earthquake)</span>
+              </div>
+              <div class="fx-item-card" data-fx="fire-sparks">
+                <i class="fa-solid fa-fire fx-ico text-orange"></i>
+                <span>شرار النار (Fire Sparks)</span>
+              </div>
+              <div class="fx-item-card" data-fx="particle-snow">
+                <i class="fa-solid fa-snowflake fx-ico text-cyan"></i>
+                <span>جزيئات ثلجية (Snow Dust)</span>
+              </div>
+              <div class="fx-item-card" data-fx="neon-grid">
+                <i class="fa-solid fa-border-all fx-ico text-purple"></i>
+                <span>شبكة نيون (Neon Grid)</span>
+              </div>
+              <div class="fx-item-card" data-fx="light-leak">
+                <i class="fa-solid fa-sun-plant-wilt fx-ico text-orange"></i>
+                <span>تسريب ضوء (Light Leak)</span>
+              </div>
+              <div class="fx-item-card" data-fx="rgb-split">
+                <i class="fa-solid fa-layer-group fx-ico text-cyan"></i>
+                <span>RGB Split Glitch</span>
+              </div>
+              <div class="fx-item-card" data-fx="optical-blur">
+                <i class="fa-solid fa-eye-slash fx-ico text-purple"></i>
+                <span>ضبابية سينمائية (Blur Focus)</span>
+              </div>
+              <div class="fx-item-card" data-fx="retro-vhs">
+                <i class="fa-solid fa-tv fx-ico text-green"></i>
+                <span>في إتش إس كلاسيك (Retro VHS)</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </aside>
+
+      <!-- CENTER PREVIEW PLAYER AREA -->
+      <section class="capcut-center-viewport">
+        
+        <!-- VIDEO CANVAS WRAPPER -->
+        <div class="player-canvas-container" id="player-container">
+          <div class="player-frame-box" id="player-wrapper">
+            <video id="main-video-player" playsinline preload="metadata"></video>
+            <canvas id="overlay-canvas"></canvas>
+
+            <!-- KINETIC ANIMATED TEXT CAPTION OVERLAY -->
+            <div class="kinetic-caption-overlay" id="captions-overlay-box"></div>
+
+            <!-- AI ACTIVE BADGE -->
+            <div class="ai-overlay-badge" id="ai-active-overlay-badge" style="display:none;">
+              <i class="fa-solid fa-sparkles"></i> <span id="active-ai-badge-text">AI 4K Ultra Active</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PLAYER CONTROL BAR -->
+        <div class="capcut-player-controls">
+          <div class="timecode-box">
+            <span id="current-timecode">00:00.00</span>
+            <span class="sep">/</span>
+            <span id="total-duration">00:00.00</span>
+          </div>
+
+          <div class="play-center-btn-group">
+            <button class="btn-play-ctrl" id="btn-skip-back" title="تراجع 5 ثوانٍ"><i class="fa-solid fa-rotate-left"></i></button>
+            <button class="btn-play-ctrl btn-main-play" id="btn-play-pause" title="تشغيل / إيقاف (Space)"><i class="fa-solid fa-play"></i></button>
+            <button class="btn-play-ctrl" id="btn-skip-forward" title="تقديم 5 ثوانٍ"><i class="fa-solid fa-rotate-right"></i></button>
+          </div>
+
+          <div class="player-right-options">
+            <button class="btn-play-ctrl" id="btn-toggle-mute"><i class="fa-solid fa-volume-high"></i></button>
+            <input type="range" id="master-volume-slider" min="0" max="1" step="0.05" value="1" class="vol-slider">
+            <div class="v-line hide-mobile"></div>
+            <button class="btn-play-ctrl hide-mobile" id="btn-fullscreen"><i class="fa-solid fa-expand"></i></button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT PROPERTIES INSPECTOR -->
+      <aside class="capcut-right-inspector hide-mobile">
+        <div class="inspector-header">
+          <span class="insp-tab active">الخصائص</span>
+          <span class="insp-tab">الحركة والتأثيرات</span>
+        </div>
+
+        <div class="inspector-body">
+          <div class="insp-group">
+            <h5>السرعة والمنحنى (Speed Ramping)</h5>
+            <div class="slider-row">
+              <span class="lbl">السرعة:</span>
+              <input type="range" class="capcut-slider" id="slider-clip-speed" min="0.2" max="4.0" step="0.1" value="1.0">
+              <span class="val-txt" id="speed-val">1.0x</span>
+            </div>
+          </div>
+
+          <div class="insp-group">
+            <h5>تنسيق الصوت (Audio Volume)</h5>
+            <div class="slider-row">
+              <span class="lbl">المستوى:</span>
+              <input type="range" class="capcut-slider" id="slider-clip-volume" min="0" max="200" value="100">
+              <span class="val-txt" id="clip-vol-val">100%</span>
+            </div>
+          </div>
+
+          <div class="insp-group">
+            <h5>تعديل الألوان والسطوع (Color Adjustments)</h5>
+            <div class="slider-row">
+              <span class="lbl">السطوع:</span>
+              <input type="range" class="capcut-slider" id="slider-brightness" min="50" max="150" value="100">
+              <span class="val-txt" id="brightness-val">100%</span>
+            </div>
+            <div class="slider-row">
+              <span class="lbl">التباين:</span>
+              <input type="range" class="capcut-slider" id="slider-contrast" min="50" max="150" value="100">
+              <span class="val-txt" id="contrast-val">100%</span>
+            </div>
+            <div class="slider-row">
+              <span class="lbl">التشبع:</span>
+              <input type="range" class="capcut-slider" id="slider-saturation" min="0" max="200" value="100">
+              <span class="val-txt" id="saturation-val">100%</span>
+            </div>
+          </div>
+
+          <div class="insp-group">
+            <h5>تقنيات الذكاء الاصطناعي المطبقة</h5>
+            <div class="ai-tags-row" id="applied-ai-badges-list">
+              <span class="ai-pill pill-whisper"><i class="fa-solid fa-check"></i> Whisper STT</span>
+              <span class="ai-pill pill-4k"><i class="fa-solid fa-check"></i> 4K Enhancer</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+    </main>
+
+    <!-- BOTTOM MULTI-TRACK TIMELINE -->
+    <footer class="capcut-timeline">
+      
+      <!-- TIMELINE ACTION TOOLBAR -->
+      <div class="tl-action-bar">
+        <div class="tl-actions-right">
+          <button class="tl-btn" id="btn-split-clip"><i class="fa-solid fa-scissors"></i> قص (Split)</button>
+          <button class="tl-btn" id="btn-delete-clip"><i class="fa-solid fa-trash"></i> حذف</button>
+          <button class="tl-btn" id="btn-duplicate-clip"><i class="fa-solid fa-clone"></i> تكرار</button>
+        </div>
+
+        <div class="tl-actions-left hide-mobile">
+          <i class="fa-solid fa-magnifying-glass-minus zoom-icon" id="btn-zoom-out"></i>
+          <input type="range" id="timeline-zoom-slider" min="10" max="200" value="100" class="zoom-range">
+          <i class="fa-solid fa-magnifying-glass-plus zoom-icon" id="btn-zoom-in"></i>
+        </div>
+      </div>
+
+      <!-- TIMELINE VIEWPORT -->
+      <div class="tl-viewport" id="timeline-viewport">
+        <!-- TIME RULER & PLAYHEAD -->
+        <div class="tl-ruler" id="timeline-ruler">
+          <div class="tl-playhead" id="timeline-playhead">
+            <div class="playhead-cap"></div>
+            <div class="playhead-stem"></div>
+          </div>
+          <div class="ticks-wrapper" id="ruler-ticks"></div>
+        </div>
+
+        <!-- TRACKS STACK -->
+        <div class="tl-tracks-stack">
+          
+          <!-- TRACK 1: TEXT & KINETIC SUBTITLES -->
+          <div class="tl-track track-text">
+            <div class="track-info">
+              <i class="fa-solid fa-font text-gold"></i>
+              <span>مسار النصوص المتحركة</span>
+            </div>
+            <div class="track-strip" id="track-content-text"></div>
+          </div>
+
+          <!-- TRACK 2: MAIN VIDEO -->
+          <div class="tl-track track-video">
+            <div class="track-info">
+              <i class="fa-solid fa-film text-cyan"></i>
+              <span>مسار الفيديو الرئيسي</span>
+            </div>
+            <div class="track-strip" id="track-content-video"></div>
+          </div>
+
+          <!-- TRACK 3: AUDIO & STEMS -->
+          <div class="tl-track track-audio">
+            <div class="track-info">
+              <i class="fa-solid fa-music text-purple"></i>
+              <span>مسار الصوت والأصوات الذكية</span>
+            </div>
+            <div class="track-strip" id="track-content-audio"></div>
+          </div>
+
+          <!-- TRACK 4: AI FILTERS & FX -->
+          <div class="tl-track track-fx">
+            <div class="track-info">
+              <i class="fa-solid fa-sparkles text-green"></i>
+              <span>مؤثرات الفلاتر</span>
+            </div>
+            <div class="track-strip" id="track-content-fx"></div>
+          </div>
+
+        </div>
+      </div>
+    </footer>
+
+    <!-- AI PROCESSING MODAL -->
+    <div class="capcut-modal-backdrop" id="ai-processing-modal" style="display:none;">
+      <div class="capcut-modal">
+        <div class="glow-spinner"></div>
+        <h3 id="modal-ai-title">جاري المعالجة بالذكاء الاصطناعي...</h3>
+        <p id="modal-ai-desc">تطبيق استخراج النصوص وترقية الجودة الفائقة.</p>
+        <div class="modal-progress-track">
+          <div class="modal-progress-bar" id="modal-progress-fill"></div>
+        </div>
+        <span class="progress-txt" id="modal-progress-text">0%</span>
+      </div>
+    </div>
+
+    <!-- EXPORT MODAL -->
+    <div class="capcut-modal-backdrop" id="export-modal" style="display:none;">
+      <div class="capcut-modal modal-large">
+        <div class="modal-top">
+          <h3><i class="fa-solid fa-arrow-up-from-bracket"></i> تصدير المشروع وحفظ الفيديو</h3>
+          <button class="close-btn" id="btn-close-export"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-content-grid">
+          <div class="form-group">
+            <label>دقة التصدير (Resolution):</label>
+            <select id="export-res" class="capcut-select">
+              <option value="4k" selected>4K Ultra HD (2160p AI Boost)</option>
+              <option value="1080p">Full HD (1080p High Bitrate)</option>
+              <option value="720p">HD (720p Fast Render)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>معدل الإطارات (FPS):</label>
+            <select id="export-fps" class="capcut-select">
+              <option value="60" selected>60 FPS (Ultra Smooth)</option>
+              <option value="30">30 FPS (Standard)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-bottom">
+          <button class="btn btn-dark-outline" id="btn-cancel-export">إلغاء</button>
+          <button class="btn btn-capcut-cyan" id="btn-confirm-export"><i class="fa-solid fa-download"></i> بدء التصدير والتنزيل</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js?v=20260722_v20"></script>
+</body>
+</html>
