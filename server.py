@@ -48,27 +48,6 @@ def get_whisper_model():
         print("Error loading Whisper:", e)
     return whisper_model
 
-# ─────────────────────────────────────────
-#  Load Demucs dynamically (Local Only)
-# ─────────────────────────────────────────
-demucs_model = None
-
-def get_demucs_model():
-    global demucs_model
-    if IS_CLOUD:
-        return None
-    if demucs_model is not None:
-        return demucs_model
-    
-    try:
-        from demucs.pretrained import get_model
-        demucs_model = get_model("htdemucs_ft")
-        demucs_model.eval()
-        print("✅ Loaded Demucs model successfully.")
-    except Exception as e:
-        print("Error loading Demucs:", e)
-    return demucs_model
-
 TEMP_DIR = tempfile.gettempdir()
 
 # Arabic Phonetic & Dialect Lyric Normalizer Dictionary
@@ -162,8 +141,7 @@ def to_stereo_wav_44k(input_path: str) -> str:
 # ─────────────────────────────────────────
 #  FastAPI App
 # ─────────────────────────────────────────
-app = FastAPI(title="CineCut AI Engine – CORS Fixed")
-# Fixed CORS headers: allow_credentials must be False when allow_origins is ["*"]
+app = FastAPI(title="CineCut AI Engine – Pure Neural Cloud Separation")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -192,7 +170,7 @@ def health():
     return JSONResponse({
         "status": "ok",
         "whisper": "Google STT Cloud API" if IS_CLOUD else "Whisper medium (local)",
-        "demucs": "SciPy STFT Cloud (low-ram)" if IS_CLOUD else "htdemucs_ft (local)",
+        "demucs": "htdemucs (cloud/local)" if IS_CLOUD else "htdemucs_ft (local)",
         "speech_recognition": "Google STT AI Ready",
     }, headers=NO_CACHE_HEADERS)
 
@@ -303,38 +281,62 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
     if wav_path is None or not os.path.isfile(wav_path):
         raise HTTPException(500, "تعذر تحويل الملف الصوتي")
 
-    # Local Mode: Use Demucs Neural Model
-    if not IS_CLOUD:
-        model = get_demucs_model()
-        if model is not None:
-            try:
-                import soundfile as sf
-                data, samplerate = sf.read(wav_path)
-                if len(data.shape) == 1:
-                    data = np.column_stack((data, data))
-                data = data.astype(np.float32)
-                
-                import torch
-                waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0)
+    # Neural Isolation (Supports standard Demucs in cloud, Fine-Tuned locally)
+    try:
+        import soundfile as sf
+        import torch
+        from demucs.apply import apply_model
+        from demucs.pretrained import get_model
 
-                with torch.no_grad():
-                    from demucs.apply import apply_model
-                    sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
+        # Limit memory during execution
+        torch.set_num_threads(2)
 
-                source_names = list(model.sources)
-                vocals_idx   = source_names.index("vocals")
-                music_indices = [i for i in range(len(source_names)) if i != vocals_idx]
+        model_name = "htdemucs" if IS_CLOUD else "htdemucs_ft"
+        print(f"Loading {model_name} model dynamically...")
+        
+        # Load model dynamically
+        model = get_model(model_name)
+        model.eval()
 
-                demucs_vocals = sources[vocals_idx].cpu().numpy().T
-                music_stems   = sum(sources[i] for i in music_indices).cpu().numpy().T
+        data, samplerate = sf.read(wav_path)
+        if len(data.shape) == 1:
+            data = np.column_stack((data, data))
+        data = data.astype(np.float32)
+        
+        waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0)
 
-                sf.write(vocals_out, demucs_vocals, model.samplerate)
-                sf.write(music_out,  music_stems,   model.samplerate)
-                print("✅ Demucs local separation complete.")
-            except Exception as e:
-                print("Demucs error, falling back to SciPy:", e)
+        with torch.no_grad():
+            sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
 
-    # Cloud Mode (or fallback): SciPy STFT (Uses <15MB RAM total!)
+        source_names = list(model.sources)
+        vocals_idx   = source_names.index("vocals")
+        music_indices = [i for i in range(len(source_names)) if i != vocals_idx]
+
+        demucs_vocals = sources[vocals_idx].cpu().numpy().T
+        music_stems   = sum(sources[i] for i in music_indices).cpu().numpy().T
+
+        # Normalize
+        v_max = np.max(np.abs(demucs_vocals))
+        m_max = np.max(np.abs(music_stems))
+        if v_max > 0:
+            demucs_vocals = demucs_vocals / v_max * 0.95
+        if m_max > 0:
+            music_stems  = music_stems  / m_max * 0.95
+
+        sf.write(vocals_out, demucs_vocals.astype(np.float32), model.samplerate)
+        sf.write(music_out,  music_stems.astype(np.float32),   model.samplerate)
+        print("✅ Demucs neural separation complete (Cloud/Local).")
+
+        # Delete from memory immediately to prevent memory leak
+        del model
+        del sources
+        del waveform
+        gc.collect()
+
+    except Exception as e:
+        print("Demucs dynamic error, falling back to SciPy STFT:", e)
+
+    # Cloud Fallback: SciPy STFT (Uses <15MB RAM total!)
     if not os.path.isfile(vocals_out):
         try:
             import soundfile as sf

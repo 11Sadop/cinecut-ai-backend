@@ -670,6 +670,38 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupEventListeners() {
     btnPlayPause?.addEventListener('click', togglePlay);
 
+    // Sync native video player events with isolated audio stem play/pause/seeking
+    if (videoPlayer) {
+      videoPlayer.addEventListener('play', () => {
+        if (state.isolatedVocalsUrl && state.useIsolatedVocalsForVideo) {
+          videoPlayer.muted = true;
+          if (!currentStemAudio || currentStemAudio.src !== state.isolatedVocalsUrl) {
+            currentStemAudio = new Audio(state.isolatedVocalsUrl);
+          }
+          currentStemAudio.currentTime = videoPlayer.currentTime;
+          currentStemAudio.play().catch(e => console.log('stem sync play error:', e));
+        }
+      });
+
+      videoPlayer.addEventListener('pause', () => {
+        if (currentStemAudio) {
+          currentStemAudio.pause();
+        }
+      });
+
+      videoPlayer.addEventListener('seeking', () => {
+        if (currentStemAudio) {
+          currentStemAudio.currentTime = videoPlayer.currentTime;
+        }
+      });
+
+      videoPlayer.addEventListener('volumechange', () => {
+        if (currentStemAudio) {
+          currentStemAudio.volume = videoPlayer.muted ? 0 : videoPlayer.volume;
+        }
+      });
+    }
+
     // STT
     document.getElementById('btn-run-stt')?.addEventListener('click', runRealWhisperSTT);
     document.getElementById('btn-apply-captions-timeline')?.addEventListener('click', applyCaptionsTimeline);
