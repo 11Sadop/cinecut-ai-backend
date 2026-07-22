@@ -48,27 +48,6 @@ def get_whisper_model():
         print("Error loading Whisper:", e)
     return whisper_model
 
-# ─────────────────────────────────────────
-#  Load Demucs dynamically (Local Only)
-# ─────────────────────────────────────────
-demucs_model = None
-
-def get_demucs_model():
-    global demucs_model
-    if IS_CLOUD:
-        return None
-    if demucs_model is not None:
-        return demucs_model
-    
-    try:
-        from demucs.pretrained import get_model
-        demucs_model = get_model("htdemucs_ft")
-        demucs_model.eval()
-        print("✅ Loaded Demucs model successfully.")
-    except Exception as e:
-        print("Error loading Demucs:", e)
-    return demucs_model
-
 TEMP_DIR = tempfile.gettempdir()
 
 # Arabic Phonetic & Dialect Lyric Normalizer Dictionary
@@ -185,6 +164,14 @@ NO_CACHE_HEADERS = {
     "Expires": "0"
 }
 
+# Standard CORS headers helper for file responses
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "*",
+    "Access-Control-Allow-Headers": "*",
+    **NO_CACHE_HEADERS
+}
+
 @app.get("/api/health")
 def health():
     cleanup_old_temp_files()
@@ -215,7 +202,7 @@ async def tts(
     try:
         communicate = edge_tts.Communicate(clean_text, voice, rate=rate, pitch=pitch)
         await communicate.save(out)
-        return FileResponse(out, media_type="audio/mpeg", filename="voiceover.mp3", headers=NO_CACHE_HEADERS)
+        return FileResponse(out, media_type="audio/mpeg", filename="voiceover.mp3", headers=CORS_HEADERS)
     except Exception as e:
         print("TTS Error:", e)
         raise HTTPException(500, str(e))
@@ -418,7 +405,7 @@ def download_stem_session(kind: str, session_id: str):
         path = os.path.join(TEMP_DIR, generic)
     if not os.path.isfile(path):
         raise HTTPException(404, "لا يوجد ملف – قم بتشغيل الفصل أولاً")
-    return FileResponse(path, media_type="audio/wav", filename=fname, headers=NO_CACHE_HEADERS)
+    return FileResponse(path, media_type="audio/wav", filename=fname, headers=CORS_HEADERS)
 
 @app.get("/api/stem/{kind}")
 def download_stem_fallback(kind: str):
@@ -426,7 +413,7 @@ def download_stem_fallback(kind: str):
     path  = os.path.join(TEMP_DIR, fname)
     if not os.path.isfile(path):
         raise HTTPException(404, "لا يوجد ملف – قم بتشغيل الفصل أولاً")
-    return FileResponse(path, media_type="audio/wav", filename=fname, headers=NO_CACHE_HEADERS)
+    return FileResponse(path, media_type="audio/wav", filename=fname, headers=CORS_HEADERS)
 
 if __name__ == "__main__":
     import uvicorn

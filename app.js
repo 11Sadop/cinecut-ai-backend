@@ -657,9 +657,20 @@ document.addEventListener('DOMContentLoaded', () => {
     videoPlayer.src = state.mediaUrl;
     videoPlayer.onloadedmetadata = () => {
       state.duration = videoPlayer.duration || 15.0;
-      state.tracks.video[0].name     = file.name;
-      state.tracks.video[0].duration = state.duration;
-      state.tracks.audio[0].duration = state.duration;
+      
+      if (state.tracks.video && state.tracks.video[0]) {
+        state.tracks.video[0].name     = file.name;
+        state.tracks.video[0].duration = state.duration;
+      } else {
+        state.tracks.video = [{ id: 'v1', name: file.name, start: 0, duration: state.duration }];
+      }
+
+      if (state.tracks.audio && state.tracks.audio[0]) {
+        state.tracks.audio[0].duration = state.duration;
+      } else {
+        state.tracks.audio = [{ id: 'a1', name: 'الصوت الأصلي', start: 0, duration: state.duration }];
+      }
+
       updateTimeDisplay();
       renderTimelineClips();
       showAiStatus(`✅ تم استيراد الملف الجديد: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
