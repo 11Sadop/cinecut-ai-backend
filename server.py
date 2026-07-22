@@ -17,48 +17,45 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 import edge_tts
 
-# Additional AI Libraries
-import librosa
-import speech_recognition as sr_lib
-
-# Limit PyTorch CPU thread allocation
-import torch
-torch.set_num_threads(2)
-
 # Detect if running in cloud production (Render 512MB RAM limit)
 IS_CLOUD = os.environ.get("RENDER") is not None or os.environ.get("PORT") is not None
 
+# Limit PyTorch CPU thread allocation locally
+if not IS_CLOUD:
+    try:
+        import torch
+        torch.set_num_threads(2)
+    except Exception:
+        pass
+
 # ─────────────────────────────────────────
-#  Load Whisper dynamically to save RAM
+#  Load Whisper dynamically (Local Only)
 # ─────────────────────────────────────────
 whisper_model = None
 
 def get_whisper_model():
     global whisper_model
+    if IS_CLOUD:
+        return None
     if whisper_model is not None:
         return whisper_model
     
-    from faster_whisper import WhisperModel
-    # Use 'tiny' (70MB) in cloud to fit in 512MB RAM, and 'medium' locally
-    size = "tiny" if IS_CLOUD else "medium"
     try:
-        whisper_model = WhisperModel(size, device="cpu", compute_type="int8", cpu_threads=2)
-        print(f"✅ Loaded Whisper ({size}) model successfully.")
+        from faster_whisper import WhisperModel
+        whisper_model = WhisperModel("medium", device="cpu", compute_type="int8", cpu_threads=2)
+        print("✅ Loaded Whisper (medium) model successfully.")
     except Exception as e:
-        print(f"Error loading Whisper {size}:", e)
-        # Fallback to tiny if medium fails
-        whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8", cpu_threads=2)
+        print("Error loading Whisper:", e)
     return whisper_model
 
 # ─────────────────────────────────────────
-#  Load Demucs dynamically to save RAM
+#  Load Demucs dynamically (Local Only)
 # ─────────────────────────────────────────
 demucs_model = None
 
 def get_demucs_model():
     global demucs_model
     if IS_CLOUD:
-        # Do not load Demucs on Render free tier to keep RAM below 512MB!
         return None
     if demucs_model is not None:
         return demucs_model
@@ -165,7 +162,7 @@ def to_stereo_wav_44k(input_path: str) -> str:
 # ─────────────────────────────────────────
 #  FastAPI App
 # ─────────────────────────────────────────
-app = FastAPI(title="CineCut AI Engine – Low RAM Optimized")
+app = FastAPI(title="CineCut AI Engine – Cloud RAM Optimized")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -193,9 +190,8 @@ def health():
     cleanup_old_temp_files()
     return JSONResponse({
         "status": "ok",
-        "whisper": "tiny (cloud)" if IS_CLOUD else "medium",
-        "demucs": "scipy-fallback (low ram)" if IS_CLOUD else "htdemucs_ft",
-        "librosa": librosa.__version__,
+        "whisper": "Google STT Cloud API" if IS_CLOUD else "Whisper medium (local)",
+        "demucs": "SciPy STFT Cloud (low-ram)" if IS_CLOUD else "htdemucs_ft (local)",
         "speech_recognition": "Google STT AI Ready",
     }, headers=NO_CACHE_HEADERS)
 
@@ -238,24 +234,29 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
     wav_path = to_mono_wav_16k(raw_path)
     results = []
 
-    try:
-        model = get_whisper_model()
-        segments, info = model.transcribe(
-            wav_path,
-            beam_size=5 if IS_CLOUD else 10,
-            temperature=0.0,
-            language="ar",
-            initial_prompt="كلمات أغنية عربية رومانسية ومحي مشتاق ليك ولقاك وعم بناديك والليل بطوله"
-        )
-        for s in segments:
-            t_txt = clean_arabic_lyric(s.text.strip())
-            if t_txt and t_txt != "لغة العربية":
-                results.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": t_txt})
-    except Exception as e_w:
-        print("Whisper exception:", e_w)
+    # Local: Use Whisper Medium Model
+    if not IS_CLOUD:
+        try:
+            model = get_whisper_model()
+            if model is not None:
+                segments, info = model.transcribe(
+                    wav_path,
+                    beam_size=10,
+                    temperature=0.0,
+                    language="ar",
+                    initial_prompt="كلمات أغنية عربية رومانسية ومحي مشتاق ليك ولقاك وعم بناديك والليل بطوله"
+                )
+                for s in segments:
+                    t_txt = clean_arabic_lyric(s.text.strip())
+                    if t_txt and t_txt != "لغة العربية":
+                        results.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": t_txt})
+        except Exception as e_w:
+            print("Local Whisper exception:", e_w)
 
+    # Cloud Fallback (Or Local Fallback): Google Speech Recognition (0MB Local RAM!)
     if len(results) == 0:
         try:
+            import speech_recognition as sr_lib
             recognizer = sr_lib.Recognizer()
             with sr_lib.AudioFile(wav_path) as source:
                 audio_data = recognizer.record(source)
@@ -263,7 +264,16 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
                 if text_google:
                     results.append({"start": 0.0, "end": 10.0, "text": text_google})
         except Exception as e_g:
-            print("Google STT fallback exception:", e_g)
+            try:
+                import speech_recognition as sr_lib
+                recognizer = sr_lib.Recognizer()
+                with sr_lib.AudioFile(wav_path) as source:
+                    audio_data = recognizer.record(source)
+                    text_google_eg = clean_arabic_lyric(recognizer.recognize_google(audio_data, language="ar-EG"))
+                    if text_google_eg:
+                        results.append({"start": 0.0, "end": 10.0, "text": text_google_eg})
+            except Exception:
+                print("Google STT Cloud exception:", e_g)
 
     gc.collect()
     return {"status": "success", "transcript": results, "language": "ar"}
@@ -275,7 +285,7 @@ async def transcribe(file: UploadFile = File(...)):
     return JSONResponse(res, headers=NO_CACHE_HEADERS)
 
 # ─────────────────────────────────────────
-#  API 3: Audio Separation (Low RAM Dynamic Selector)
+#  API 3: Audio Separation (Dynamic RAM Allocator)
 # ─────────────────────────────────────────
 def _sync_separate_audio(raw_bytes: bytes, filename: str):
     cleanup_old_temp_files()
@@ -292,35 +302,38 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
     if wav_path is None or not os.path.isfile(wav_path):
         raise HTTPException(500, "تعذر تحويل الملف الصوتي")
 
-    # If running locally, use Demucs Neural Isolation
-    model = get_demucs_model()
-    if model is not None:
-        try:
-            import soundfile as sf
-            from demucs.apply import apply_model
-            data, samplerate = sf.read(wav_path)
-            if len(data.shape) == 1:
-                data = np.column_stack((data, data))
-            data = data.astype(np.float32)
-            waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0)
+    # Local Mode: Use Demucs Neural Model
+    if not IS_CLOUD:
+        model = get_demucs_model()
+        if model is not None:
+            try:
+                import soundfile as sf
+                data, samplerate = sf.read(wav_path)
+                if len(data.shape) == 1:
+                    data = np.column_stack((data, data))
+                data = data.astype(np.float32)
+                
+                import torch
+                waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0)
 
-            with torch.no_grad():
-                sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
+                with torch.no_grad():
+                    from demucs.apply import apply_model
+                    sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
 
-            source_names = list(model.sources)
-            vocals_idx   = source_names.index("vocals")
-            music_indices = [i for i in range(len(source_names)) if i != vocals_idx]
+                source_names = list(model.sources)
+                vocals_idx   = source_names.index("vocals")
+                music_indices = [i for i in range(len(source_names)) if i != vocals_idx]
 
-            demucs_vocals = sources[vocals_idx].cpu().numpy().T
-            music_stems   = sum(sources[i] for i in music_indices).cpu().numpy().T
+                demucs_vocals = sources[vocals_idx].cpu().numpy().T
+                music_stems   = sum(sources[i] for i in music_indices).cpu().numpy().T
 
-            sf.write(vocals_out, demucs_vocals, model.samplerate)
-            sf.write(music_out,  music_stems,   model.samplerate)
-            print("✅ Demucs separation complete.")
-        except Exception as e:
-            print("Demucs error, falling back to SciPy:", e)
+                sf.write(vocals_out, demucs_vocals, model.samplerate)
+                sf.write(music_out,  music_stems,   model.samplerate)
+                print("✅ Demucs local separation complete.")
+            except Exception as e:
+                print("Demucs error, falling back to SciPy:", e)
 
-    # If running on Render (Free 512MB RAM), use SciPy STFT (Uses <15MB RAM!)
+    # Cloud Mode (or fallback): SciPy STFT (Uses <15MB RAM total!)
     if not os.path.isfile(vocals_out):
         try:
             import soundfile as sf
@@ -352,7 +365,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
 
             sf.write(vocals_out, v.astype(np.float32), samplerate)
             sf.write(music_out,  m.astype(np.float32), samplerate)
-            print("✅ SciPy Low RAM separation complete.")
+            print("✅ SciPy STFT Cloud separation complete.")
         except Exception as e:
             print("SciPy error:", e)
             raise HTTPException(500, f"Separation failed: {e}")
