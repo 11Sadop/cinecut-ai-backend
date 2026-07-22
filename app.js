@@ -5,7 +5,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  const HTTPS_TUNNEL_URL = "https://puny-badgers-divide.loca.lt";
+  const HTTPS_TUNNEL_URL = "https://cinecut-ai-backend.onrender.com";
   const AI_SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
     ? "http://127.0.0.1:5000" 
     : HTTPS_TUNNEL_URL;
