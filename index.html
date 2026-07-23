@@ -19,12 +19,22 @@
     
     <!-- TOP NAVBAR (Responsive CapCut Header) -->
     <header class="capcut-header">
-      <div class="header-right-group">
+      <div class="header-right-group" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
         <button class="mobile-toggle-btn" id="btn-toggle-mobile-sidebar" title="القائمة"><i class="fa-solid fa-bars"></i></button>
         <div class="capcut-logo">
           <div class="logo-icon-box"><i class="fa-solid fa-clapperboard"></i></div>
           <span class="logo-title">CineCut <span class="badge-pro">ULTIMATE</span></span>
         </div>
+        
+        <div class="ai-status-pill" style="display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
+          <span class="pulse-green"></span>
+          <span id="ai-engine-status" style="font-size: 11px;">محرك الذكاء الاصطناعي والصوتي: جاهز</span>
+          <button id="btn-custom-server" style="background: rgba(0, 240, 255, 0.15); border: 1px solid rgba(0, 240, 255, 0.3); color: #00f0ff; cursor: pointer; padding: 2px 8px; font-size: 11px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-family: 'Cairo', sans-serif;" title="تغيير رابط السيرفر">
+            <i class="fa-solid fa-gear"></i>
+            <span>تغيير</span>
+          </button>
+        </div>
+
         <nav class="top-menu hide-mobile">
           <span class="menu-item">مشروع جديد</span>
           <span class="menu-item active">تعديل</span>
@@ -47,15 +57,6 @@
             <option value="1:1">🔲 1:1 (Instagram)</option>
             <option value="4:5">📐 4:5 (Portrait)</option>
           </select>
-        </div>
-
-        <div class="ai-status-pill" style="display: flex; align-items: center; gap: 8px; padding-left: 12px; padding-right: 12px;">
-          <span class="pulse-green"></span>
-          <span id="ai-engine-status">محرك الذكاء الاصطناعي والصوتي: جاهز</span>
-          <button id="btn-custom-server" style="background: rgba(0, 240, 255, 0.15); border: 1px solid rgba(0, 240, 255, 0.3); color: #00f0ff; cursor: pointer; padding: 2px 8px; font-size: 11px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-family: 'Cairo', sans-serif;" title="تغيير رابط السيرفر">
-            <i class="fa-solid fa-gear"></i>
-            <span>تغيير</span>
-          </button>
         </div>
       </div>
 
@@ -683,6 +684,6 @@
 
   </div>
 
-  <script src="app.js?v=20260723_v2"></script>
+  <script src="app.js?v=20260723_v3"></script>
 </body>
 </html>
