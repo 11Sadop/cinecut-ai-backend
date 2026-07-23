@@ -337,12 +337,29 @@ document.addEventListener('DOMContentLoaded', () => {
       state.isolatedMusicUrl  = `${AI_SERVER_URL}${data.music_url}`;
       state.useIsolatedVocalsForVideo = true;
 
+      // Fetch vocals & music audio files as Blobs using the bypass header to bypass localtunnel reminder page
+      showAiStatus('📥 جاري تحميل مسارات الصوت المعزولة بدقة عالية...');
+      const [vocalsRes, musicRes] = await Promise.all([
+        fetch(state.isolatedVocalsUrl, { headers: DEFAULT_FETCH_HEADERS }),
+        fetch(state.isolatedMusicUrl, { headers: DEFAULT_FETCH_HEADERS })
+      ]);
+
+      if (!vocalsRes.ok || !musicRes.ok) {
+        throw new Error("تعذر تحميل ملفات الصوت من الخادم السحابي");
+      }
+
+      const vocalsBlob = await vocalsRes.blob();
+      const musicBlob  = await musicRes.blob();
+
+      state.localVocalsBlobUrl = URL.createObjectURL(vocalsBlob);
+      state.localMusicBlobUrl  = URL.createObjectURL(musicBlob);
+
       // Create Synced Audio Object for Isolated Vocals
       if (currentStemAudio) {
         currentStemAudio.pause();
         currentStemAudio = null;
       }
-      currentStemAudio = new Audio(state.isolatedVocalsUrl);
+      currentStemAudio = new Audio(state.localVocalsBlobUrl);
 
       // Mute original video audio track so ONLY isolated vocals play!
       if (videoPlayer) {
@@ -352,8 +369,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update Download Links in UI
       const dlVocals = document.getElementById('btn-dl-vocals');
       const dlMusic  = document.getElementById('btn-dl-music');
-      if (dlVocals) dlVocals.href = state.isolatedVocalsUrl;
-      if (dlMusic)  dlMusic.href  = state.isolatedMusicUrl;
+      if (dlVocals) dlVocals.href = state.localVocalsBlobUrl;
+      if (dlMusic)  dlMusic.href  = state.localMusicBlobUrl;
 
       stopModalProgress('تم حظر وإلغاء جميع الآلات والقيتارات واستبدال صوت الفيديو!', () => {
         const stemBox = document.getElementById('stem-controls-container');
@@ -380,7 +397,10 @@ document.addEventListener('DOMContentLoaded', () => {
       currentTtsAudio = null;
     }
 
-    const url = kind === 'vocals' ? state.isolatedVocalsUrl : state.isolatedMusicUrl;
+    const url = kind === 'vocals' 
+      ? (state.localVocalsBlobUrl || state.isolatedVocalsUrl) 
+      : (state.localMusicBlobUrl || state.isolatedMusicUrl);
+      
     if (!url) {
       showAiStatus('⚠️ يرجى تشغيل فصل الموسيقى أولاً');
       return;
@@ -606,8 +626,9 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // If isolated vocal track is available, play it in sync with video!
       if (state.isolatedVocalsUrl && state.useIsolatedVocalsForVideo) {
-        if (!currentStemAudio || currentStemAudio.src !== state.isolatedVocalsUrl) {
-          currentStemAudio = new Audio(state.isolatedVocalsUrl);
+        const audioUrl = state.localVocalsBlobUrl || state.isolatedVocalsUrl;
+        if (!currentStemAudio || currentStemAudio.src !== audioUrl) {
+          currentStemAudio = new Audio(audioUrl);
         }
         videoPlayer.muted = true;
         currentStemAudio.currentTime = videoPlayer.currentTime || state.currentTime;
@@ -728,8 +749,9 @@ document.addEventListener('DOMContentLoaded', () => {
       videoPlayer.addEventListener('play', () => {
         if (state.isolatedVocalsUrl && state.useIsolatedVocalsForVideo) {
           videoPlayer.muted = true;
-          if (!currentStemAudio || currentStemAudio.src !== state.isolatedVocalsUrl) {
-            currentStemAudio = new Audio(state.isolatedVocalsUrl);
+          const audioUrl = state.localVocalsBlobUrl || state.isolatedVocalsUrl;
+          if (!currentStemAudio || currentStemAudio.src !== audioUrl) {
+            currentStemAudio = new Audio(audioUrl);
           }
           currentStemAudio.currentTime = videoPlayer.currentTime;
           currentStemAudio.play().catch(e => console.log('stem sync play error:', e));
