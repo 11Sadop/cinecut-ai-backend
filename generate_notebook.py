@@ -6,8 +6,8 @@ notebook = {
    "cell_type": "markdown",
    "metadata": {},
    "source": [
-    "# 🎬 CineCut AI Pro - Cloud GPU Backend\n",
-    "Welcome to the official **CineCut AI Pro** Google Colab server! This notebook provides a **100% Free GPU Server (T4 GPU / 16GB RAM)** to run the heavy AI models (Meta Demucs htdemucs_ft & OpenAI Whisper medium) at studio-grade 4K quality.\n",
+    "# 🎬 CineCut AI Pro - Cloud CPU Backend\n",
+    "Welcome to the official **CineCut AI Pro** Google Colab server! This notebook provides a **100% Free CPU Server (12.7GB RAM)** to run the heavy AI models (Meta Demucs htdemucs_ft & OpenAI Whisper medium) at studio-grade 4K quality.\n",
     "\n",
     "### 🚀 How to use:\n",
     "1. In the top menu, click **Runtime** -> **Run all** (أو اضغط على **▶ Run all** في شريط الأدوات).\n",
@@ -48,7 +48,7 @@ notebook = {
    "metadata": {},
    "outputs": [],
    "source": [
-    "#@title 🌐 Start the GPU AI Engine and Generate Public URL\n",
+    "#@title 🌐 Start the AI Engine and Generate Public URL\n",
     "import subprocess\n",
     "import time\n",
     "import socket\n",
@@ -74,7 +74,7 @@ notebook = {
     "    file.write(content)\n",
     "\n",
     "# Start FastAPI server in the background\n",
-    "print('🚀 Starting GPU FastAPI server on port 5000...')\n",
+    "print('🚀 Starting FastAPI server on port 5000...')\n",
     "server_process = subprocess.Popen(['uvicorn', 'server:app', '--host', '127.0.0.1', '--port', '5000'])\n",
     "time.sleep(5)  # Wait for server to boot\n",
     "\n",
@@ -91,7 +91,7 @@ notebook = {
     "        break\n",
     "\n",
     "print('\\n==================================================================')\n",
-    "print('🎬 CINECUT AI ENGINE IS RUNNING IN GPU MODE!')\n",
+    "print('🎬 CINECUT AI ENGINE IS RUNNING!')\n",
     "print(f'🔗 Your Public Server URL: {tunnel_url}')\n",
     "print(f'🔑 Localtunnel Password (IP): {public_ip}')\n",
     "print('==================================================================\\n')\n",
@@ -109,11 +109,6 @@ notebook = {
   }
  ],
  "metadata": {
-  "accelerator": "GPU",
-  "colab": {
-   "gpuType": "T4",
-   "provenance": []
-  },
   "kernelspec": {
    "display_name": "Python 3",
    "language": "python",
@@ -129,4 +124,4 @@ notebook = {
 
 with open("cinecut_colab_backend.ipynb", "w", encoding="utf-8") as f:
     json.dump(notebook, f, indent=1)
-print("Jupyter notebook generated successfully!")
+print("CPU-default Jupyter notebook generated successfully!")
