@@ -12,3 +12,4 @@ edge-tts
 librosa
 SpeechRecognition
 requests
+gradio

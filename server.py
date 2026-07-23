@@ -17,11 +17,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.concurrency import run_in_threadpool
 import edge_tts
 
-# Detect if running in cloud production (Render 512MB RAM limit)
+# Detect if running on HuggingFace Spaces (16GB RAM available)
+IS_HF = os.environ.get("SPACE_ID") is not None
 IS_CLOUD = os.environ.get("RENDER") is not None or os.environ.get("PORT") is not None
 
 # Limit PyTorch CPU thread allocation locally
-if not IS_CLOUD:
+if not IS_CLOUD or IS_HF:
     try:
         import torch
         torch.set_num_threads(2)
@@ -29,24 +30,47 @@ if not IS_CLOUD:
         pass
 
 # ─────────────────────────────────────────
-#  Load Whisper dynamically (Local Only)
+#  Load Whisper dynamically (Local & HF)
 # ─────────────────────────────────────────
 whisper_model = None
 
 def get_whisper_model():
     global whisper_model
-    if IS_CLOUD:
-        return None
     if whisper_model is not None:
         return whisper_model
     
+    # Use 'medium' on local PC and HuggingFace, and 'tiny' on Render
+    size = "medium" if (not IS_CLOUD or IS_HF) else "tiny"
     try:
         from faster_whisper import WhisperModel
-        whisper_model = WhisperModel("medium", device="cpu", compute_type="int8", cpu_threads=2)
-        print("✅ Loaded Whisper (medium) model successfully.")
+        whisper_model = WhisperModel(size, device="cpu", compute_type="int8", cpu_threads=2)
+        print(f"✅ Loaded Whisper ({size}) model successfully.")
     except Exception as e:
         print("Error loading Whisper:", e)
     return whisper_model
+
+# ─────────────────────────────────────────
+#  Load Demucs dynamically (Local & HF)
+# ─────────────────────────────────────────
+demucs_model = None
+
+def get_demucs_model():
+    global demucs_model
+    if whisper_model is not None:
+        return demucs_model
+    
+    # Load htdemucs_ft on local PC and HF Spaces
+    if IS_CLOUD and not IS_HF:
+        return None
+        
+    try:
+        from demucs.pretrained import get_model
+        demucs_model = get_model("htdemucs_ft")
+        demucs_model.eval()
+        print("✅ Loaded Demucs (htdemucs_ft) model successfully.")
+    except Exception as e:
+        print("Error loading Demucs:", e)
+    return demucs_model
 
 TEMP_DIR = tempfile.gettempdir()
 
@@ -141,7 +165,7 @@ def to_stereo_wav_44k(input_path: str) -> str:
 # ─────────────────────────────────────────
 #  FastAPI App
 # ─────────────────────────────────────────
-app = FastAPI(title="CineCut AI Engine – Cloud Optimized")
+app = FastAPI(title="CineCut AI Engine – Pure Neural Cloud/Local")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -177,8 +201,8 @@ def health():
     cleanup_old_temp_files()
     return JSONResponse({
         "status": "ok",
-        "whisper": "Google STT Cloud API" if IS_CLOUD else "Whisper medium (local)",
-        "demucs": "Advanced DSP Spectral Subtraction (cloud)" if IS_CLOUD else "htdemucs_ft (local)",
+        "whisper": "Whisper medium (HF/local)" if (not IS_CLOUD or IS_HF) else "tiny (Render)",
+        "demucs": "htdemucs_ft (HF/local)" if (not IS_CLOUD or IS_HF) else "Advanced DSP (Render)",
         "speech_recognition": "Google STT AI Ready",
     }, headers=NO_CACHE_HEADERS)
 
@@ -221,8 +245,8 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
     wav_path = to_mono_wav_16k(raw_path)
     results = []
 
-    # Local: Use Whisper Medium Model
-    if not IS_CLOUD:
+    # Local & HF: Use Whisper Medium Model
+    if not IS_CLOUD or IS_HF:
         try:
             model = get_whisper_model()
             if model is not None:
@@ -238,9 +262,9 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
                     if t_txt and t_txt != "لغة العربية":
                         results.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": t_txt})
         except Exception as e_w:
-            print("Local Whisper exception:", e_w)
+            print("Local/HF Whisper exception:", e_w)
 
-    # Cloud Fallback (Or Local Fallback): Google Speech Recognition (0MB Local RAM!)
+    # Cloud Fallback (Render): Google Speech Recognition (0MB Local RAM!)
     if len(results) == 0:
         try:
             import speech_recognition as sr_lib
@@ -289,8 +313,8 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
     if wav_path is None or not os.path.isfile(wav_path):
         raise HTTPException(500, "تعذر تحويل الملف الصوتي")
 
-    # Local Mode: Use Demucs Neural Model
-    if not IS_CLOUD:
+    # Local & HF Mode: Use Demucs Neural Model
+    if not IS_CLOUD or IS_HF:
         try:
             import soundfile as sf
             import torch
@@ -325,12 +349,12 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
 
                 sf.write(vocals_out, demucs_vocals.astype(np.float32), model.samplerate)
                 sf.write(music_out,  music_stems.astype(np.float32),   model.samplerate)
-                print("✅ Demucs local separation complete.")
+                print("✅ Demucs neural separation complete.")
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
-    # Cloud Mode: Advanced DSP Spectral Subtraction & Noise Gate (Uses <15MB RAM, 100% stable on Render!)
-    if IS_CLOUD or not os.path.isfile(vocals_out):
+    # Cloud Fallback (Render): SciPy STFT (Uses <15MB RAM total!)
+    if not os.path.isfile(vocals_out):
         try:
             import soundfile as sf
             from scipy import signal as sig
