@@ -109,9 +109,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ─── MOBILE SIDEBAR ───────────────────────────────────────────────────────
   function setupMobileSidebar() {
-    const btn   = document.getElementById('btn-toggle-mobile-sidebar');
-    const panel = document.getElementById('left-sidebar-panel');
-    btn?.addEventListener('click', () => panel?.classList.toggle('open'));
+    const btn      = document.getElementById('btn-toggle-mobile-sidebar');
+    const closeBtn = document.getElementById('btn-close-mobile-sidebar');
+    const panel    = document.getElementById('left-sidebar-panel');
+    btn?.addEventListener('click', () => panel?.classList.add('open'));
+    closeBtn?.addEventListener('click', () => panel?.classList.remove('open'));
   }
 
   // ─── TABS NAVIGATION & DESIGN STUDIO ──────────────────────────────────────
@@ -171,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── DYNAMIC ACCURATE REALTIME PROGRESS COUNTER ────────────────────────────
   function startModalProgress(expectedSec, title, desc) {
     clearInterval(progressInterval);
+    document.getElementById('left-sidebar-panel')?.classList.remove('open');
     const modal = document.getElementById('ai-processing-modal');
     if (document.getElementById('modal-ai-title')) document.getElementById('modal-ai-title').innerText = title;
     if (document.getElementById('modal-ai-desc'))  document.getElementById('modal-ai-desc').innerText  = desc;
@@ -229,11 +232,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const estimatedSec = Math.max(3, Math.ceil(state.duration * 0.25));
+    const isRender = AI_SERVER_URL.includes("onrender.com");
+    const titleText = isRender 
+      ? 'جاري إيقاظ الخادم السحابي واستخراج الكلمات (قد يستغرق 40 ثانية للتشغيل الأول)...'
+      : 'جاري استخراج جميع الكلمات والقصائد 100% (OpenAI Whisper)...';
+    const estimatedSec = isRender ? 45 : Math.max(3, Math.ceil(state.duration * 0.25));
 
     startModalProgress(
       estimatedSec,
-      'جاري استخراج جميع الكلمات والقصائد 100% (OpenAI Whisper)...',
+      titleText,
       `تفريغ النص الدقيق بدون خطأ لـ: ${state.mediaFile.name}`
     );
 
@@ -305,11 +312,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const estimatedSec = Math.max(4, Math.ceil(state.duration * 0.35));
+    const isRender = AI_SERVER_URL.includes("onrender.com");
+    const titleText = isRender 
+      ? 'جاري إيقاظ الخادم السحابي الذكي وعزل الموسيقى (قد يستغرق 40 ثانية للتشغيل الأول)...'
+      : 'جاري عزل وتجريف الموسيقى والقيتار بالذكاء الاصطناعي...';
+    const estimatedSec = isRender ? 45 : Math.max(4, Math.ceil(state.duration * 0.35));
 
     startModalProgress(
       estimatedSec,
-      'جاري عزل وتجريف الموسيقى والقيتار بالذكاء الاصطناعي...',
+      titleText,
       `إلغاء جميع الآلات الموسيقية وعزل صوت الكلام النقي للمقطع: ${state.mediaFile.name}`
     );
 
@@ -456,7 +467,13 @@ document.addEventListener('DOMContentLoaded', () => {
       currentTtsAudio = null;
     }
 
-    startModalProgress(4, 'جاري توليد الصوت العصبي الفاخر...', `نطق "${text.substring(0, 30)}..." بصوت بشري طبيعي.`);
+    const isRender = AI_SERVER_URL.includes("onrender.com");
+    const titleText = isRender 
+      ? 'جاري إيقاظ الخادم وتوليد الصوت العصبي (قد يستغرق 40 ثانية للتشغيل الأول)...'
+      : 'جاري توليد الصوت العصبي الفاخر...';
+    const estimatedSec = isRender ? 45 : 4;
+
+    startModalProgress(estimatedSec, titleText, `نطق "${text.substring(0, 30)}..." بصوت بشري طبيعي.`);
 
     const formData = new FormData();
     formData.append('text', text.trim());

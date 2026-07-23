@@ -761,6 +761,10 @@ input:checked + .switch-slider:before { transform: translateX(16px); background-
 .text-green { color: var(--capcut-green); }
 .text-orange { color: var(--capcut-orange); }
 
+.show-only-mobile {
+  display: none !important;
+}
+
 /* RESPONSIVE DESIGN MEDIA QUERIES (يناسب جميع أنواع الأجهزة الكبيرة والصغيرة) */
 @media (max-width: 1024px) {
   .capcut-left-panel { width: 320px; }
@@ -772,22 +776,88 @@ input:checked + .switch-slider:before { transform: translateX(16px); background-
 @media (max-width: 768px) {
   .mobile-toggle-btn { display: block; }
   .hide-mobile { display: none !important; }
+  .show-only-mobile { display: flex !important; }
   
+  /* Prevent Header Wrapping & Overlap */
+  .header-right-group {
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+  }
+  
+  /* Compact Status Pill on Mobile */
+  #ai-engine-status {
+    display: none !important;
+  }
+  
+  .ai-status-pill {
+    padding: 3px 6px !important;
+    gap: 4px !important;
+    border-radius: 12px !important;
+  }
+  
+  #btn-custom-server {
+    padding: 2px 4px !important;
+  }
+  
+  #btn-custom-server span {
+    display: none !important;
+  }
+
+  /* Workspace Column Layout */
   .capcut-main-workspace { flex-direction: column; }
   .capcut-left-panel {
     position: absolute; top: 0; right: 0; height: 100%; width: 290px;
     transform: translateX(100%); box-shadow: -5px 0 20px rgba(0,0,0,0.8);
+    z-index: 500;
   }
   .capcut-left-panel.open { transform: translateX(0); }
   
+  /* Video Player Sizing on Mobile */
   .capcut-center-viewport { flex: 1; }
-  .capcut-timeline { height: 180px; }
-  .track-info { width: 110px; min-width: 110px; font-size: 0.65rem; }
-  .tl-playhead { left: 110px; }
+  .player-canvas-container { padding: 8px; }
+  #main-video-player { max-height: calc(100vh - 310px) !important; }
+  
+  /* Squeeze Timeline Sizing */
+  .capcut-timeline { height: 160px; }
+  .track-info { width: 90px; min-width: 90px; font-size: 0.65rem; padding: 0 6px; }
+  .tl-playhead { left: 90px; }
+  .track-strip { min-width: 800px; }
+  
+  /* Compact Player Controls Bar */
+  .capcut-player-controls {
+    padding: 0 8px !important;
+    height: 40px !important;
+  }
+  .player-right-options {
+    display: none !important; /* Hide volume slider on mobile */
+  }
+  .play-center-btn-group {
+    gap: 8px !important;
+  }
+  .btn-play-ctrl {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.85rem !important;
+  }
+  .btn-main-play {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 0.95rem !important;
+  }
 }
 
 @media (max-width: 480px) {
-  .capcut-header { padding: 0 10px; }
-  .logo-title { font-size: 0.95rem; }
-  .btn { padding: 4px 10px; font-size: 0.75rem; }
+  .capcut-header { padding: 0 8px; height: 48px; }
+  .logo-title { font-size: 0.85rem; }
+  .btn { padding: 3px 8px; font-size: 0.72rem; }
+  
+  /* Squeeze timeline buttons further */
+  .tl-btn {
+    padding: 2px 6px !important;
+    font-size: 0.65rem !important;
+    gap: 3px !important;
+  }
+  .tl-actions-right {
+    gap: 4px !important;
+  }
 }
