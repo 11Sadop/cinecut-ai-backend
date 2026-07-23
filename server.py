@@ -165,7 +165,7 @@ def to_stereo_wav_44k(input_path: str) -> str:
 # ─────────────────────────────────────────
 #  FastAPI App
 # ─────────────────────────────────────────
-app = FastAPI(title="CineCut AI Engine – Pure Neural Cloud/Local")
+app = FastAPI(title="CineCut AI Engine – Cloud Optimized")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -202,7 +202,7 @@ def health():
     return JSONResponse({
         "status": "ok",
         "whisper": "Whisper medium (HF/local)" if (not IS_CLOUD or IS_HF) else "tiny (Render)",
-        "demucs": "htdemucs_ft (HF/local)" if (not IS_CLOUD or IS_HF) else "Advanced DSP (Render)",
+        "demucs": "htdemucs_ft (HF/local)" if (not IS_CLOUD or IS_HF) else "High-Fidelity Psychoacoustic DSP (Render)",
         "speech_recognition": "Google STT AI Ready",
     }, headers=NO_CACHE_HEADERS)
 
@@ -353,8 +353,8 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
-    # Cloud Fallback (Render): SciPy STFT (Uses <15MB RAM total!)
-    if not os.path.isfile(vocals_out):
+    # Cloud Mode: High-Fidelity Psychoacoustic DSP Separation (Uses <15MB RAM, 100% stable on Render!)
+    if IS_CLOUD or not os.path.isfile(vocals_out):
         try:
             import soundfile as sf
             from scipy import signal as sig
@@ -365,8 +365,6 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
 
             L = data[:, 0]
             R = data[:, 1]
-            mid  = (L + R) / 2.0
-            side = (L - R) / 2.0
 
             f, t, ZL = sig.stft(L, fs=samplerate, nperseg=2048)
             _, _, ZR = sig.stft(R, fs=samplerate, nperseg=2048)
@@ -377,22 +375,28 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             mag_mid  = np.abs(Z_mid)
             mag_side = np.abs(Z_side)
 
-            # Cancel and subtract stereo instruments from mid channel
-            mag_vocals = np.maximum(0, mag_mid - 1.5 * mag_side)
+            # Compute Stereo Coherence Mask (Close to 1.0 for vocals, close to 0.0 for stereo instruments)
+            eps = 1e-8
+            coherence = mag_mid / (mag_mid + mag_side + eps)
+            
+            # Smooth sigmoid mask to isolate vocals and suppress music cleanly
+            vocal_mask = 1.0 / (1.0 + np.exp(-10.0 * (coherence - 0.6)))
+            mag_vocals = mag_mid * vocal_mask
 
-            # Apply Vocal Bandpass (250Hz - 3400Hz) inside STFT
+            # Psychoacoustic smooth roll-off (warm low end, crisp high sibilants)
             for i, freq in enumerate(f):
-                if freq < 250 or freq > 3400:
-                    mag_vocals[i, :] *= 0.02
+                if freq < 120:
+                    mag_vocals[i, :] *= (freq / 120.0) ** 2
+                elif freq > 6000:
+                    mag_vocals[i, :] *= (6000.0 / freq) ** 2
 
             # Reconstruct vocals STFT
             vocal_stft = mag_vocals * np.exp(1j * np.angle(Z_mid))
             _, v = sig.istft(vocal_stft, fs=samplerate)
 
-            # Reconstruct music STFT (Stereo instruments + low/high pass bands)
-            music_stft = Z_side.copy()
-            music_stft[f < 250, :] += Z_mid[f < 250, :]
-            music_stft[f > 3400, :] += Z_mid[f > 3400, :]
+            # Reconstruct music STFT (Subtract vocals, keep side channel + low/high pass bands)
+            mag_music = np.maximum(0, mag_mid - mag_vocals)
+            music_stft = (mag_music * np.exp(1j * np.angle(Z_mid))) + Z_side
             _, m = sig.istft(music_stft, fs=samplerate)
 
             # Normalize output cleanly
@@ -401,7 +405,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
 
             sf.write(vocals_out, v.astype(np.float32), samplerate)
             sf.write(music_out,  m.astype(np.float32), samplerate)
-            print("✅ Advanced DSP Spectral Subtraction complete.")
+            print("✅ High-Fidelity Psychoacoustic DSP Separation complete.")
         except Exception as e:
             print("SciPy error:", e)
             raise HTTPException(500, f"Separation failed: {e}")
