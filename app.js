@@ -6,24 +6,33 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   const HTTPS_TUNNEL_URL = "https://cinecut-ai-backend.onrender.com";
-  let AI_SERVER_URL = HTTPS_TUNNEL_URL;
+  let AI_SERVER_URL = localStorage.getItem('cinecut_custom_server_url') || HTTPS_TUNNEL_URL;
 
-  // Dynamic Local-to-Cloud Auto-Discovery engine
-  fetch("http://127.0.0.1:5000/api/health", { method: 'GET', signal: AbortSignal.timeout(800) })
-    .then(r => r.json())
-    .then(data => {
-      if (data.status === 'ok') {
-        AI_SERVER_URL = "http://127.0.0.1:5000";
-        const statusPill = document.getElementById('ai-engine-status');
-        if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل محلياً (دقة فائقة Meta Demucs)";
-        console.log("Connected to high-quality local server:", AI_SERVER_URL);
-      }
-    })
-    .catch(e => {
-      console.log("Using cloud server fallback:", AI_SERVER_URL);
+  if (localStorage.getItem('cinecut_custom_server_url')) {
+    console.log("Connected to custom server URL:", AI_SERVER_URL);
+    // Delay slightly to allow DOM to render before updating text
+    setTimeout(() => {
       const statusPill = document.getElementById('ai-engine-status');
-      if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل سحابياً (دقة متوسطة)";
-    });
+      if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل بسيرفر مخصص (مستقر)";
+    }, 100);
+  } else {
+    // Dynamic Local-to-Cloud Auto-Discovery engine
+    fetch("http://127.0.0.1:5000/api/health", { method: 'GET', signal: AbortSignal.timeout(800) })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'ok') {
+          AI_SERVER_URL = "http://127.0.0.1:5000";
+          const statusPill = document.getElementById('ai-engine-status');
+          if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل محلياً (دقة فائقة Meta Demucs)";
+          console.log("Connected to high-quality local server:", AI_SERVER_URL);
+        }
+      })
+      .catch(e => {
+        console.log("Using cloud server fallback:", AI_SERVER_URL);
+        const statusPill = document.getElementById('ai-engine-status');
+        if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل سحابياً (دقة متوسطة)";
+      });
+  }
 
   const DEFAULT_FETCH_HEADERS = {
     'bypass-tunnel-reminder': 'true'
@@ -695,6 +704,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── EVENT LISTENERS ─────────────────────────────────────────────────────
   function setupEventListeners() {
     btnPlayPause?.addEventListener('click', togglePlay);
+
+    // Custom Server configuration listener
+    document.getElementById('btn-custom-server')?.addEventListener('click', () => {
+      const currentUrl = localStorage.getItem('cinecut_custom_server_url') || AI_SERVER_URL;
+      const newUrl = prompt("أدخل رابط خادم الذكاء الاصطناعي المخصص (مثل رابط Colab):\n(اتركه فارغاً لإعادة التعيين التلقائي)", currentUrl);
+      if (newUrl !== null) {
+        const cleanUrl = newUrl.trim().replace(/\/$/, ""); // Remove trailing slash
+        if (cleanUrl) {
+          localStorage.setItem('cinecut_custom_server_url', cleanUrl);
+          alert("✅ تم حفظ رابط السيرفر المخصص بنجاح! سيتم إعادة تحميل الصفحة للتطبيق.");
+          window.location.reload();
+        } else {
+          localStorage.removeItem('cinecut_custom_server_url');
+          alert("🔄 تم مسح السيرفر المخصص والعودة للوضع الافتراضي الذكي.");
+          window.location.reload();
+        }
+      }
+    });
 
     // Sync native video player events with isolated audio stem play/pause/seeking
     if (videoPlayer) {
