@@ -7,13 +7,14 @@ notebook = {
    "metadata": {},
    "source": [
     "# 🎬 CineCut AI Pro - Cloud GPU Backend\n",
-    "Welcome to the official **CineCut AI Pro** Google Colab server! This notebook provides a **100% Free GPU Server with 16GB RAM** to run the heavy AI models (Meta Demucs htdemucs_ft & OpenAI Whisper medium) at studio-grade 4K quality.\n",
+    "Welcome to the official **CineCut AI Pro** Google Colab server! This notebook provides a **100% Free GPU Server (T4 GPU / 16GB RAM)** to run the heavy AI models (Meta Demucs htdemucs_ft & OpenAI Whisper medium) at studio-grade 4K quality.\n",
     "\n",
     "### 🚀 How to use:\n",
-    "1. In the top menu, click **Runtime** -> **Run all** (أو اضغط على **تشغيل الكل**).\n",
-    "2. Scroll down to the bottom cell and wait for the **Localtunnel URL** to appear.\n",
-    "3. Copy the URL (e.g., `https://xxxx.loca.lt`) and paste it into the CineCut Studio website!\n",
-    "4. Click the link once and click **Click to Continue** on the blue screen to authorize the tunnel."
+    "1. In the top menu, click **Runtime** -> **Run all** (أو اضغط على **▶ Run all** في شريط الأدوات).\n",
+    "2. Wait for the installation to complete. Models are pre-cached for instant processing.\n",
+    "3. Scroll down to the bottom cell and wait for the **Localtunnel URL** to appear.\n",
+    "4. Copy the URL (e.g., `https://xxxx.loca.lt`) and paste it into the CineCut Studio website!\n",
+    "5. Click the link once and click **Click to Continue** on the blue screen to authorize the tunnel."
    ]
   },
   {
@@ -22,10 +23,23 @@ notebook = {
    "metadata": {},
    "outputs": [],
    "source": [
-    "#@title 📦 Install dependencies (يستغرق دقيقة واحدة)\n",
+    "#@title 📦 Install dependencies & Pre-cache AI Models (يستغرق دقيقة ونصف)\n",
+    "# Install python libraries\n",
     "!pip install fastapi uvicorn python-multipart torch torchaudio soundfile scipy numpy faster-whisper demucs edge-tts librosa SpeechRecognition nest-asyncio\n",
+    "\n",
+    "# Install localtunnel client\n",
     "!npm install -g localtunnel\n",
-    "print('✅ Installation Complete!')"
+    "\n",
+    "# Pre-download Meta Demucs htdemucs_ft model weights to prevent timeout later\n",
+    "print('📥 Pre-downloading Demucs Neural Model weights...')\n",
+    "import subprocess\n",
+    "subprocess.run(['python', '-c', 'from demucs.pretrained import get_model; get_model(\"htdemucs_ft\")'])\n",
+    "\n",
+    "# Pre-download Whisper medium weights\n",
+    "print('📥 Pre-downloading Whisper Medium model weights...')\n",
+    "subprocess.run(['python', '-c', 'from faster_whisper import WhisperModel; WhisperModel(\"medium\", device=\"cpu\", compute_type=\"int8\")'])\n",
+    "\n",
+    "print('✅ Installation & Caching Complete!')"
    ]
   },
   {
@@ -34,7 +48,7 @@ notebook = {
    "metadata": {},
    "outputs": [],
    "source": [
-    "#@title 🌐 Start the AI Engine and Generate Public URL\n",
+    "#@title 🌐 Start the GPU AI Engine and Generate Public URL\n",
     "import subprocess\n",
     "import time\n",
     "import socket\n",
@@ -60,7 +74,7 @@ notebook = {
     "    file.write(content)\n",
     "\n",
     "# Start FastAPI server in the background\n",
-    "print('🚀 Starting FastAPI server on port 5000...')\n",
+    "print('🚀 Starting GPU FastAPI server on port 5000...')\n",
     "server_process = subprocess.Popen(['uvicorn', 'server:app', '--host', '127.0.0.1', '--port', '5000'])\n",
     "time.sleep(5)  # Wait for server to boot\n",
     "\n",
@@ -77,7 +91,7 @@ notebook = {
     "        break\n",
     "\n",
     "print('\\n==================================================================')\n",
-    "print('🎬 CINECUT AI ENGINE IS RUNNING!')\n",
+    "print('🎬 CINECUT AI ENGINE IS RUNNING IN GPU MODE!')\n",
     "print(f'🔗 Your Public Server URL: {tunnel_url}')\n",
     "print(f'🔑 Localtunnel Password (IP): {public_ip}')\n",
     "print('==================================================================\\n')\n",
@@ -95,6 +109,11 @@ notebook = {
   }
  ],
  "metadata": {
+  "accelerator": "GPU",
+  "colab": {
+   "gpuType": "T4",
+   "provenance": []
+  },
   "kernelspec": {
    "display_name": "Python 3",
    "language": "python",

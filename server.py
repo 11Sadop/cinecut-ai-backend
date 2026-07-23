@@ -21,10 +21,14 @@ import edge_tts
 IS_HF = os.environ.get("SPACE_ID") is not None
 IS_CLOUD = os.environ.get("RENDER") is not None or os.environ.get("PORT") is not None
 
+# Detect GPU availability
+import torch
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"📡 AI Engine Device Auto-Detect: {DEVICE.upper()}")
+
 # Limit PyTorch CPU thread allocation locally
-if not IS_CLOUD or IS_HF:
+if DEVICE == "cpu" and (not IS_CLOUD or IS_HF):
     try:
-        import torch
         torch.set_num_threads(2)
     except Exception:
         pass
@@ -39,12 +43,13 @@ def get_whisper_model():
     if whisper_model is not None:
         return whisper_model
     
-    # Use 'medium' on local PC and HuggingFace, and 'tiny' on Render
-    size = "medium" if (not IS_CLOUD or IS_HF) else "tiny"
+    # Use 'medium' on local PC, HF Spaces, and Colab, and 'tiny' on Render
+    size = "medium" if (not IS_CLOUD or IS_HF or DEVICE == "cuda") else "tiny"
+    compute_type = "float16" if DEVICE == "cuda" else "int8"
     try:
         from faster_whisper import WhisperModel
-        whisper_model = WhisperModel(size, device="cpu", compute_type="int8", cpu_threads=2)
-        print(f"✅ Loaded Whisper ({size}) model successfully.")
+        whisper_model = WhisperModel(size, device=DEVICE, compute_type=compute_type, cpu_threads=2)
+        print(f"✅ Loaded Whisper ({size}) model on {DEVICE.upper()} successfully.")
     except Exception as e:
         print("Error loading Whisper:", e)
     return whisper_model
@@ -56,11 +61,11 @@ demucs_model = None
 
 def get_demucs_model():
     global demucs_model
-    if whisper_model is not None:
+    if demucs_model is not None:
         return demucs_model
     
-    # Load htdemucs_ft on local PC and HF Spaces
-    if IS_CLOUD and not IS_HF:
+    # Load htdemucs_ft on local PC, HF, and Colab (GPU)
+    if IS_CLOUD and not IS_HF and DEVICE == "cpu":
         return None
         
     try:
@@ -165,7 +170,7 @@ def to_stereo_wav_44k(input_path: str) -> str:
 # ─────────────────────────────────────────
 #  FastAPI App
 # ─────────────────────────────────────────
-app = FastAPI(title="CineCut AI Engine – Cloud Optimized")
+app = FastAPI(title="CineCut AI Engine – GPU Optimized")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -201,8 +206,8 @@ def health():
     cleanup_old_temp_files()
     return JSONResponse({
         "status": "ok",
-        "whisper": "Whisper medium (HF/local)" if (not IS_CLOUD or IS_HF) else "tiny (Render)",
-        "demucs": "htdemucs_ft (HF/local)" if (not IS_CLOUD or IS_HF) else "High-Fidelity Psychoacoustic DSP (Render)",
+        "whisper": f"Whisper medium ({DEVICE.upper()})" if (not IS_CLOUD or IS_HF or DEVICE == "cuda") else "tiny (Render)",
+        "demucs": f"htdemucs_ft ({DEVICE.upper()})" if (not IS_CLOUD or IS_HF or DEVICE == "cuda") else "High-Fidelity DSP (Render)",
         "speech_recognition": "Google STT AI Ready",
     }, headers=NO_CACHE_HEADERS)
 
@@ -245,8 +250,8 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
     wav_path = to_mono_wav_16k(raw_path)
     results = []
 
-    # Local & HF: Use Whisper Medium Model
-    if not IS_CLOUD or IS_HF:
+    # Local & Colab/HF: Use Whisper Medium Model
+    if not IS_CLOUD or IS_HF or DEVICE == "cuda":
         try:
             model = get_whisper_model()
             if model is not None:
@@ -313,21 +318,23 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
     if wav_path is None or not os.path.isfile(wav_path):
         raise HTTPException(500, "تعذر تحويل الملف الصوتي")
 
-    # Local & HF Mode: Use Demucs Neural Model
-    if not IS_CLOUD or IS_HF:
+    # Local, Colab or HF Mode: Use Demucs Neural Model
+    if not IS_CLOUD or IS_HF or DEVICE == "cuda":
         try:
             import soundfile as sf
-            import torch
             from demucs.apply import apply_model
             
             model = get_demucs_model()
             if model is not None:
+                # Move model to target device (GPU if available)
+                model.to(DEVICE)
+                
                 data, samplerate = sf.read(wav_path)
                 if len(data.shape) == 1:
                     data = np.column_stack((data, data))
                 data = data.astype(np.float32)
                 
-                waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0)
+                waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0).to(DEVICE)
 
                 with torch.no_grad():
                     sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
@@ -349,12 +356,12 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
 
                 sf.write(vocals_out, demucs_vocals.astype(np.float32), model.samplerate)
                 sf.write(music_out,  music_stems.astype(np.float32),   model.samplerate)
-                print("✅ Demucs neural separation complete.")
+                print(f"✅ Demucs neural separation complete on {DEVICE.upper()}.")
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
-    # Cloud Mode: High-Fidelity Psychoacoustic DSP Separation (Uses <15MB RAM, 100% stable on Render!)
-    if IS_CLOUD or not os.path.isfile(vocals_out):
+    # Cloud Fallback (Render): SciPy STFT (Uses <15MB RAM total!)
+    if not os.path.isfile(vocals_out):
         try:
             import soundfile as sf
             from scipy import signal as sig
@@ -375,7 +382,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             mag_mid  = np.abs(Z_mid)
             mag_side = np.abs(Z_side)
 
-            # Compute Stereo Coherence Mask (Close to 1.0 for vocals, close to 0.0 for stereo instruments)
+            # Compute Stereo Coherence Mask
             eps = 1e-8
             coherence = mag_mid / (mag_mid + mag_side + eps)
             
@@ -383,7 +390,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             vocal_mask = 1.0 / (1.0 + np.exp(-10.0 * (coherence - 0.6)))
             mag_vocals = mag_mid * vocal_mask
 
-            # Psychoacoustic smooth roll-off (warm low end, crisp high sibilants)
+            # Psychoacoustic smooth roll-off
             for i, freq in enumerate(f):
                 if freq < 120:
                     mag_vocals[i, :] *= (freq / 120.0) ** 2
@@ -394,7 +401,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             vocal_stft = mag_vocals * np.exp(1j * np.angle(Z_mid))
             _, v = sig.istft(vocal_stft, fs=samplerate)
 
-            # Reconstruct music STFT (Subtract vocals, keep side channel + low/high pass bands)
+            # Reconstruct music STFT
             mag_music = np.maximum(0, mag_mid - mag_vocals)
             music_stft = (mag_music * np.exp(1j * np.angle(Z_mid))) + Z_side
             _, m = sig.istft(music_stft, fs=samplerate)
