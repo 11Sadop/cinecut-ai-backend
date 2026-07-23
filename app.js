@@ -6,9 +6,24 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   const HTTPS_TUNNEL_URL = "https://cinecut-ai-backend.onrender.com";
-  const AI_SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-    ? "http://127.0.0.1:5000" 
-    : HTTPS_TUNNEL_URL;
+  let AI_SERVER_URL = HTTPS_TUNNEL_URL;
+
+  // Dynamic Local-to-Cloud Auto-Discovery engine
+  fetch("http://127.0.0.1:5000/api/health", { method: 'GET', signal: AbortSignal.timeout(800) })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'ok') {
+        AI_SERVER_URL = "http://127.0.0.1:5000";
+        const statusPill = document.getElementById('ai-engine-status');
+        if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل محلياً (دقة فائقة Meta Demucs)";
+        console.log("Connected to high-quality local server:", AI_SERVER_URL);
+      }
+    })
+    .catch(e => {
+      console.log("Using cloud server fallback:", AI_SERVER_URL);
+      const statusPill = document.getElementById('ai-engine-status');
+      if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل سحابياً (دقة متوسطة)";
+    });
 
   const DEFAULT_FETCH_HEADERS = {
     'bypass-tunnel-reminder': 'true'
