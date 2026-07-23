@@ -101,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res  = await fetch(`${AI_SERVER_URL}/api/health?t=${Date.now()}`, { headers: DEFAULT_FETCH_HEADERS });
       const data = await res.json();
+      state.isGpu = (data.demucs && (data.demucs.includes("CUDA") || data.demucs.includes("GPU"))) || 
+                    (data.whisper && (data.whisper.includes("CUDA") || data.whisper.includes("GPU")));
       showAiStatus(`🟢 الخادم نشط 100% | Whisper: ${data.whisper} | Demucs: ${data.demucs}`);
     } catch (e) {
       showAiStatus('🟢 استوديو الذكاء الاصطناعي جاهز للمعالجة والتعديل');
@@ -185,19 +187,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fill) fill.style.width = '0%';
     if (txt)  txt.innerText = '0% | جاري بدء المعالجة الفائقة...';
 
-    let currentPct = 0;
     const startTime = Date.now();
     const durationMs = Math.max(2000, expectedSec * 1000);
 
     progressInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const progressRatio = Math.min(0.98, 1 - Math.exp(-3 * (elapsed / durationMs)));
-      currentPct = Math.floor(progressRatio * 100);
+      let pct = Math.floor((elapsed / durationMs) * 100);
+      if (pct > 98) pct = 98;
 
-      const remainingSec = Math.max(1, Math.ceil((durationMs - elapsed) / 1000));
-      if (fill) fill.style.width = `${currentPct}%`;
-      if (txt)  txt.innerText = `${currentPct}% | متبقي حوالي ${remainingSec} ثانية... (جاري المعالجة)`;
-    }, 120);
+      const remainingSec = Math.max(0, Math.ceil((durationMs - elapsed) / 1000));
+      
+      if (fill) fill.style.width = `${pct}%`;
+      
+      if (pct < 98) {
+        if (txt) txt.innerText = `${pct}% | ⏱️ الزمن المتبقي: ${remainingSec} ثانية...`;
+      } else {
+        if (txt) txt.innerText = `98% | ⏳ جاري إنهاء وتجميع الملفات النهائية...`;
+      }
+    }, 100);
   }
 
   function stopModalProgress(completionText, callback) {
@@ -236,7 +243,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const titleText = isRender 
       ? 'جاري إيقاظ الخادم السحابي واستخراج الكلمات (قد يستغرق 40 ثانية للتشغيل الأول)...'
       : 'جاري استخراج جميع الكلمات والقصائد 100% (OpenAI Whisper)...';
-    const estimatedSec = isRender ? 45 : Math.max(3, Math.ceil(state.duration * 0.25));
+    let estimatedSec = 10;
+    if (isRender) {
+      estimatedSec = 45;
+    } else if (state.isGpu) {
+      estimatedSec = Math.max(3, Math.ceil(state.duration * 0.03 + 1.0));
+    } else {
+      estimatedSec = Math.max(5, Math.ceil(state.duration * 0.2 + 2.5));
+    }
 
     startModalProgress(
       estimatedSec,
@@ -316,7 +330,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const titleText = isRender 
       ? 'جاري إيقاظ الخادم السحابي الذكي وعزل الموسيقى (قد يستغرق 40 ثانية للتشغيل الأول)...'
       : 'جاري عزل وتجريف الموسيقى والقيتار بالذكاء الاصطناعي...';
-    const estimatedSec = isRender ? 45 : Math.max(4, Math.ceil(state.duration * 0.35));
+    let estimatedSec = 15;
+    if (isRender) {
+      estimatedSec = 45;
+    } else if (state.isGpu) {
+      estimatedSec = Math.max(3, Math.ceil(state.duration * 0.05 + 1.5));
+    } else {
+      estimatedSec = Math.max(6, Math.ceil(state.duration * 0.35 + 3.0));
+    }
 
     startModalProgress(
       estimatedSec,
