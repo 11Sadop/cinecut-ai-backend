@@ -639,7 +639,11 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'noir-bw':       f += ' grayscale(100%) contrast(160%)'; break;
     }
     if (state.aiSettings.hdrBoost) f += ' contrast(115%) saturate(130%)';
+    
     videoPlayer.style.filter = f;
+    if (overlayCanvas) {
+      overlayCanvas.style.filter = f;
+    }
   }
 
   function renderKineticSubtitles() {
