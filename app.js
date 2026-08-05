@@ -56,9 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
     mediaFile: null,
     mediaUrl: null,
     
-    isolatedVocalsUrl: null,
-    isolatedMusicUrl: null,
-    useIsolatedVocalsForVideo: true, // Auto replace video audio with isolated vocal track
+    // 4-Stem Audio Mixer Studio
+    stems: {
+      vocals: { url: null, blobUrl: null, audio: null, volume: 1.0 },
+      drums:  { url: null, blobUrl: null, audio: null, volume: 1.0 },
+      bass:   { url: null, blobUrl: null, audio: null, volume: 1.0 },
+      other:  { url: null, blobUrl: null, audio: null, volume: 1.0 }
+    },
+    useIsolatedStems: false,
     
     transcript: [],
     tracks: {
@@ -365,33 +370,43 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await response.json();
 
       // Unique session URL per upload
-      state.isolatedVocalsUrl = `${AI_SERVER_URL}${data.vocals_url}`;
-      state.isolatedMusicUrl  = `${AI_SERVER_URL}${data.music_url}`;
-      state.useIsolatedVocalsForVideo = true;
+      state.stems.vocals.url = `${AI_SERVER_URL}${data.vocals_url}`;
+      state.stems.drums.url  = `${AI_SERVER_URL}${data.drums_url}`;
+      state.stems.bass.url   = `${AI_SERVER_URL}${data.bass_url}`;
+      state.stems.other.url  = `${AI_SERVER_URL}${data.other_url}`;
+      state.useIsolatedStems = true;
 
-      // Fetch vocals & music audio files as Blobs using the bypass header to bypass localtunnel reminder page
+      // Fetch all 4 audio files as Blobs using the bypass header to bypass localtunnel reminder page
       showAiStatus('📥 جاري تحميل مسارات الصوت المعزولة بدقة عالية...');
-      const [vocalsRes, musicRes] = await Promise.all([
-        fetch(state.isolatedVocalsUrl, { headers: DEFAULT_FETCH_HEADERS }),
-        fetch(state.isolatedMusicUrl, { headers: DEFAULT_FETCH_HEADERS })
+      const [vRes, dRes, bRes, oRes] = await Promise.all([
+        fetch(state.stems.vocals.url, { headers: DEFAULT_FETCH_HEADERS }),
+        fetch(state.stems.drums.url, { headers: DEFAULT_FETCH_HEADERS }),
+        fetch(state.stems.bass.url, { headers: DEFAULT_FETCH_HEADERS }),
+        fetch(state.stems.other.url, { headers: DEFAULT_FETCH_HEADERS })
       ]);
 
-      if (!vocalsRes.ok || !musicRes.ok) {
+      if (!vRes.ok || !dRes.ok || !bRes.ok || !oRes.ok) {
         throw new Error("تعذر تحميل ملفات الصوت من الخادم السحابي");
       }
 
-      const vocalsBlob = await vocalsRes.blob();
-      const musicBlob  = await musicRes.blob();
+      const [vBlob, dBlob, bBlob, oBlob] = await Promise.all([
+        vRes.blob(), dRes.blob(), bRes.blob(), oRes.blob()
+      ]);
 
-      state.localVocalsBlobUrl = URL.createObjectURL(vocalsBlob);
-      state.localMusicBlobUrl  = URL.createObjectURL(musicBlob);
+      state.stems.vocals.blobUrl = URL.createObjectURL(vBlob);
+      state.stems.drums.blobUrl  = URL.createObjectURL(dBlob);
+      state.stems.bass.blobUrl   = URL.createObjectURL(bBlob);
+      state.stems.other.blobUrl  = URL.createObjectURL(oBlob);
 
-      // Create Synced Audio Object for Isolated Vocals
-      if (currentStemAudio) {
-        currentStemAudio.pause();
-        currentStemAudio = null;
-      }
-      currentStemAudio = new Audio(state.localVocalsBlobUrl);
+      // Create Synced Audio Objects for all 4 stems
+      Object.keys(state.stems).forEach(kind => {
+        const stem = state.stems[kind];
+        if (stem.audio) {
+          stem.audio.pause();
+          stem.audio = null;
+        }
+        stem.audio = new Audio(stem.blobUrl);
+      });
 
       // Mute original video audio track so ONLY isolated vocals play!
       if (videoPlayer) {
@@ -400,14 +415,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Update Download Links in UI
       const dlVocals = document.getElementById('btn-dl-vocals');
-      const dlMusic  = document.getElementById('btn-dl-music');
-      if (dlVocals) dlVocals.href = state.localVocalsBlobUrl;
-      if (dlMusic)  dlMusic.href  = state.localMusicBlobUrl;
+      const dlDrums  = document.getElementById('btn-dl-drums');
+      const dlBass   = document.getElementById('btn-dl-bass');
+      const dlOther  = document.getElementById('btn-dl-other');
+      if (dlVocals) dlVocals.href = state.stems.vocals.blobUrl;
+      if (dlDrums)  dlDrums.href  = state.stems.drums.blobUrl;
+      if (dlBass)   dlBass.href   = state.stems.bass.blobUrl;
+      if (dlOther)  dlOther.href  = state.stems.other.blobUrl;
 
       stopModalProgress('تم حظر وإلغاء جميع الآلات والقيتارات واستبدال صوت الفيديو!', () => {
         const stemBox = document.getElementById('stem-controls-container');
         if (stemBox) stemBox.style.display = 'block';
-        showAiStatus(`🟢 تم عزل جميع الآلات واستبدال صوت الفيديو بالصوت النقي بدون موسيقى! 🎤`);
+        showAiStatus(`🟢 تم عزل جميع الآلات وتوزيع قنوات الصوت بنجاح! 🥁🎤🎸🎹`);
       });
 
     } catch (e) {
@@ -418,20 +437,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Play / Stop a stem track directly
   function playStem(kind) {
-    if (currentStemAudio) {
-      currentStemAudio.pause();
-      currentStemAudio.currentTime = 0;
-      currentStemAudio = null;
-    }
+    stopStem();
     if (currentTtsAudio) {
       currentTtsAudio.pause();
       currentTtsAudio.currentTime = 0;
       currentTtsAudio = null;
     }
 
-    const url = kind === 'vocals' 
-      ? (state.localVocalsBlobUrl || state.isolatedVocalsUrl) 
-      : (state.localMusicBlobUrl || state.isolatedMusicUrl);
+    const stem = state.stems[kind];
+    const url = stem ? (stem.blobUrl || stem.url) : null;
       
     if (!url) {
       showAiStatus('⚠️ يرجى تشغيل فصل الموسيقى أولاً');
@@ -441,20 +455,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const audio = new Audio(url);
     audio.play().catch(e => showAiStatus(`❌ تعذر التشغيل: ${e.message}`));
     currentStemAudio = audio;
-    const label = kind === 'vocals' ? 'الكلام النقي الخالي من الموسيقى والقيتار' : 'الموسيقى والآلات فقط';
-    showAiStatus(`🔊 يُشغّل الآن: ${label}`);
+    
+    const labels = {
+      vocals: 'صوت الكلام البشري النقي',
+      drums:  'صوت الطبول والإيقاعات',
+      bass:   'صوت الباص والقرار العميق',
+      other:  'صوت الآلات - عود، قيتار، بيانو'
+    };
+    
+    showAiStatus(`🔊 يُشغّل الآن منفصلاً: ${labels[kind] || kind}`);
 
-    const btnV = document.getElementById('btn-play-vocals');
-    const btnM = document.getElementById('btn-play-music');
+    const btn = document.getElementById(`btn-play-${kind}`);
     const btnStop = document.getElementById('btn-stop-stem');
-    if (btnV) btnV.innerHTML = kind === 'vocals' ? '<i class="fa-solid fa-pause"></i> إيقاف' : '<i class="fa-solid fa-play"></i> تشغيل';
-    if (btnM) btnM.innerHTML = kind === 'music'  ? '<i class="fa-solid fa-pause"></i> إيقاف' : '<i class="fa-solid fa-play"></i> تشغيل';
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-pause"></i> إيقاف';
     if (btnStop) btnStop.style.display = 'inline-flex';
 
     audio.onended = () => {
       currentStemAudio = null;
-      if (btnV) btnV.innerHTML = '<i class="fa-solid fa-play"></i> تشغيل';
-      if (btnM) btnM.innerHTML = '<i class="fa-solid fa-play"></i> تشغيل';
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i> تشغيل';
       if (btnStop) btnStop.style.display = 'none';
       showAiStatus('✅ انتهى التشغيل');
     };
@@ -466,11 +484,11 @@ document.addEventListener('DOMContentLoaded', () => {
       currentStemAudio.currentTime = 0;
       currentStemAudio = null;
     }
-    const btnV = document.getElementById('btn-play-vocals');
-    const btnM = document.getElementById('btn-play-music');
+    ['vocals', 'drums', 'bass', 'other'].forEach(k => {
+      const btn = document.getElementById(`btn-play-${k}`);
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i> تشغيل';
+    });
     const btnStop = document.getElementById('btn-stop-stem');
-    if (btnV) btnV.innerHTML = '<i class="fa-solid fa-play"></i> تشغيل';
-    if (btnM) btnM.innerHTML = '<i class="fa-solid fa-play"></i> تشغيل';
     if (btnStop) btnStop.style.display = 'none';
     showAiStatus('⏹ توقف التشغيل');
   }
@@ -662,15 +680,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.isPlaying) {
       videoPlayer?.play();
       
-      // If isolated vocal track is available, play it in sync with video!
-      if (state.isolatedVocalsUrl && state.useIsolatedVocalsForVideo) {
-        const audioUrl = state.localVocalsBlobUrl || state.isolatedVocalsUrl;
-        if (!currentStemAudio || currentStemAudio.src !== audioUrl) {
-          currentStemAudio = new Audio(audioUrl);
-        }
-        videoPlayer.muted = true;
-        currentStemAudio.currentTime = videoPlayer.currentTime || state.currentTime;
-        currentStemAudio.play().catch(e => console.log('stem play error:', e));
+      if (state.useIsolatedStems) {
+        if (videoPlayer) videoPlayer.muted = true;
+        Object.keys(state.stems).forEach(kind => {
+          const stem = state.stems[kind];
+          if (stem.blobUrl) {
+            if (!stem.audio) {
+              stem.audio = new Audio(stem.blobUrl);
+            }
+            stem.audio.currentTime = videoPlayer ? videoPlayer.currentTime : state.currentTime;
+            stem.audio.volume = stem.volume;
+            stem.audio.playbackRate = videoPlayer ? videoPlayer.playbackRate : 1.0;
+            stem.audio.play().catch(e => console.log('stem play error:', e));
+          }
+        });
       } else {
         if (videoPlayer) videoPlayer.muted = false;
       }
@@ -679,8 +702,12 @@ document.addEventListener('DOMContentLoaded', () => {
       startTimer();
     } else {
       videoPlayer?.pause();
-      if (currentStemAudio) {
-        currentStemAudio.pause();
+      if (state.useIsolatedStems) {
+        Object.keys(state.stems).forEach(kind => {
+          if (state.stems[kind].audio) {
+            state.stems[kind].audio.pause();
+          }
+        });
       }
       if (btnPlayPause) btnPlayPause.innerHTML = '<i class="fa-solid fa-play"></i>';
       stopTimer();
@@ -696,7 +723,13 @@ document.addEventListener('DOMContentLoaded', () => {
       last = now;
       if (state.currentTime >= state.duration) { 
         state.currentTime = 0; 
-        if (currentStemAudio) { currentStemAudio.currentTime = 0; }
+        if (state.useIsolatedStems) {
+          Object.keys(state.stems).forEach(kind => {
+            if (state.stems[kind].audio) {
+              state.stems[kind].audio.currentTime = 0;
+            }
+          });
+        }
         togglePlay(); 
         return; 
       }
@@ -785,32 +818,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sync native video player events with isolated audio stem play/pause/seeking
     if (videoPlayer) {
       videoPlayer.addEventListener('play', () => {
-        if (state.isolatedVocalsUrl && state.useIsolatedVocalsForVideo) {
+        if (state.useIsolatedStems) {
           videoPlayer.muted = true;
-          const audioUrl = state.localVocalsBlobUrl || state.isolatedVocalsUrl;
-          if (!currentStemAudio || currentStemAudio.src !== audioUrl) {
-            currentStemAudio = new Audio(audioUrl);
-          }
-          currentStemAudio.currentTime = videoPlayer.currentTime;
-          currentStemAudio.play().catch(e => console.log('stem sync play error:', e));
+          Object.keys(state.stems).forEach(kind => {
+            const stem = state.stems[kind];
+            if (stem.blobUrl) {
+              if (!stem.audio) {
+                stem.audio = new Audio(stem.blobUrl);
+              }
+              stem.audio.currentTime = videoPlayer.currentTime;
+              stem.audio.volume = stem.volume;
+              stem.audio.playbackRate = videoPlayer.playbackRate;
+              stem.audio.play().catch(e => console.log('stem sync play error:', e));
+            }
+          });
         }
       });
 
       videoPlayer.addEventListener('pause', () => {
-        if (currentStemAudio) {
-          currentStemAudio.pause();
+        if (state.useIsolatedStems) {
+          Object.keys(state.stems).forEach(kind => {
+            if (state.stems[kind].audio) {
+              state.stems[kind].audio.pause();
+            }
+          });
         }
       });
 
       videoPlayer.addEventListener('seeking', () => {
-        if (currentStemAudio) {
-          currentStemAudio.currentTime = videoPlayer.currentTime;
-        }
-      });
-
-      videoPlayer.addEventListener('volumechange', () => {
-        if (currentStemAudio) {
-          currentStemAudio.volume = videoPlayer.muted ? 0 : videoPlayer.volume;
+        if (state.useIsolatedStems) {
+          Object.keys(state.stems).forEach(kind => {
+            if (state.stems[kind].audio) {
+              state.stems[kind].audio.currentTime = videoPlayer.currentTime;
+            }
+          });
         }
       });
     }
@@ -819,22 +860,41 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-run-stt')?.addEventListener('click', runRealWhisperSTT);
     document.getElementById('btn-apply-captions-timeline')?.addEventListener('click', applyCaptionsTimeline);
 
-    // Stem Separation
+    // Stem Separation Click Handlers
     document.getElementById('btn-run-stem-separation')?.addEventListener('click', runRealDemucsSeparation);
     document.getElementById('btn-play-vocals')?.addEventListener('click', () => playStem('vocals'));
-    document.getElementById('btn-play-music')?.addEventListener('click',  () => playStem('music'));
+    document.getElementById('btn-play-drums')?.addEventListener('click',  () => playStem('drums'));
+    document.getElementById('btn-play-bass')?.addEventListener('click',   () => playStem('bass'));
+    document.getElementById('btn-play-other')?.addEventListener('click',  () => playStem('other'));
     document.getElementById('btn-stop-stem')?.addEventListener('click',   stopStem);
+
+    // 4-Stem Sliders Volume Controls
+    ['vocals', 'drums', 'bass', 'other'].forEach(kind => {
+      document.getElementById(`stem-vol-${kind}`)?.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        const vol = val / 100;
+        state.stems[kind].volume = vol;
+        if (state.stems[kind].audio) {
+          state.stems[kind].audio.volume = vol;
+        }
+        showAiStatus(`مستوى صوت ${kind}: ${val}%`);
+      });
+    });
 
     // Speed Ramping & Audio Volume Controls
     document.getElementById('slider-speed')?.addEventListener('input', (e) => {
-      if (videoPlayer) videoPlayer.playbackRate = parseFloat(e.target.value);
-      if (currentStemAudio) currentStemAudio.playbackRate = parseFloat(e.target.value);
-      showAiStatus(`سرعة الفيديو: ${e.target.value}x`);
+      const val = parseFloat(e.target.value);
+      if (videoPlayer) videoPlayer.playbackRate = val;
+      if (state.useIsolatedStems) {
+        Object.keys(state.stems).forEach(k => {
+          if (state.stems[k].audio) state.stems[k].audio.playbackRate = val;
+        });
+      }
+      showAiStatus(`سرعة الفيديو: ${val}x`);
     });
     document.getElementById('slider-volume')?.addEventListener('input', (e) => {
       const vol = Math.min(parseFloat(e.target.value) / 100, 1.0);
-      if (currentStemAudio) currentStemAudio.volume = vol;
-      if (videoPlayer && !state.isolatedVocalsUrl) videoPlayer.volume = vol;
+      if (videoPlayer && !state.useIsolatedStems) videoPlayer.volume = vol;
     });
 
     // TTS
@@ -894,10 +954,10 @@ document.addEventListener('DOMContentLoaded', () => {
       startModalProgress(3, 'جاري التصدير...', 'ترميز الإطارات الصوتية والمرئية.');
       setTimeout(() => {
         stopModalProgress('تم التصدير بنجاح!', () => {
-          const exportUrl = state.isolatedVocalsUrl || state.mediaUrl || URL.createObjectURL(new Blob([''], { type: 'video/mp4' }));
+          const exportUrl = state.stems.vocals.blobUrl || state.mediaUrl || URL.createObjectURL(new Blob([''], { type: 'video/mp4' }));
           const a = document.createElement('a');
           a.href     = exportUrl;
-          a.download = state.isolatedVocalsUrl ? 'CineCut_Isolated_Vocals.wav' : 'CineCut_Output.mp4';
+          a.download = state.stems.vocals.blobUrl ? 'CineCut_Isolated_Vocals.wav' : 'CineCut_Output.mp4';
           a.click();
           showAiStatus('🚀 تم التصدير وتنزيل الملف بنجاح!');
         });
@@ -910,6 +970,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (offsetX >= 0) {
         state.currentTime = Math.max(0, Math.min(state.duration, offsetX / 20));
         if (videoPlayer?.src) videoPlayer.currentTime = state.currentTime;
+        if (state.useIsolatedStems) {
+          Object.keys(state.stems).forEach(kind => {
+            if (state.stems[kind].audio) {
+              state.stems[kind].audio.currentTime = state.currentTime;
+            }
+          });
+        }
         if (currentStemAudio) currentStemAudio.currentTime = state.currentTime;
         syncPlayhead();
         updateTimeDisplay();

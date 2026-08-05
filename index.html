@@ -328,20 +328,38 @@
 
             <div class="stem-channels-box" id="stem-controls-container" style="display:none;">
               <div class="stem-item">
-                <div class="stem-label"><i class="fa-solid fa-user text-cyan"></i> الصوت البشري النقي (Vocals Only)</div>
-                <input type="range" class="capcut-slider" id="stem-vol-vocals" min="0" max="200" value="100">
+                <div class="stem-label"><i class="fa-solid fa-microphone text-cyan"></i> 🎤 الصوت البشري النقي (Vocals Only)</div>
+                <input type="range" class="capcut-slider" id="stem-vol-vocals" min="0" max="400" value="100">
                 <div style="display:flex;gap:6px;margin-top:6px;">
                   <button class="btn btn-cyan btn-sm" id="btn-play-vocals"><i class="fa-solid fa-play"></i> تشغيل</button>
-                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-vocals" href="http://127.0.0.1:5000/api/stem/vocals" download="vocals_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-vocals" href="#" download="vocals_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
                 </div>
               </div>
 
               <div class="stem-item" style="margin-top:12px;">
-                <div class="stem-label"><i class="fa-solid fa-music text-purple"></i> الموسيقى فقط (Music Only)</div>
-                <input type="range" class="capcut-slider" id="stem-vol-music" min="0" max="200" value="100">
+                <div class="stem-label"><i class="fa-solid fa-drum text-gold"></i> 🥁 الطبول والإيقاع (Drums Only)</div>
+                <input type="range" class="capcut-slider" id="stem-vol-drums" min="0" max="400" value="100">
                 <div style="display:flex;gap:6px;margin-top:6px;">
-                  <button class="btn btn-purple btn-sm" id="btn-play-music"><i class="fa-solid fa-play"></i> تشغيل</button>
-                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-music" href="http://127.0.0.1:5000/api/stem/music" download="music_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+                  <button class="btn btn-gold btn-sm" id="btn-play-drums"><i class="fa-solid fa-play"></i> تشغيل</button>
+                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-drums" href="#" download="drums_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+                </div>
+              </div>
+
+              <div class="stem-item" style="margin-top:12px;">
+                <div class="stem-label"><i class="fa-solid fa-guitar text-green"></i> 🎸 صوت الباص والقرار (Bass Only)</div>
+                <input type="range" class="capcut-slider" id="stem-vol-bass" min="0" max="400" value="100">
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                  <button class="btn btn-green btn-sm" id="btn-play-bass"><i class="fa-solid fa-play"></i> تشغيل</button>
+                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-bass" href="#" download="bass_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+                </div>
+              </div>
+
+              <div class="stem-item" style="margin-top:12px;">
+                <div class="stem-label"><i class="fa-solid fa-sliders text-purple"></i> 🎹 باقي الآلات - عود، قيتار، بيانو (Instruments)</div>
+                <input type="range" class="capcut-slider" id="stem-vol-other" min="0" max="400" value="100">
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                  <button class="btn btn-purple btn-sm" id="btn-play-other"><i class="fa-solid fa-play"></i> تشغيل</button>
+                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-other" href="#" download="instruments_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
                 </div>
               </div>
 

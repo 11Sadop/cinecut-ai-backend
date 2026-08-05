@@ -70,9 +70,9 @@ def get_demucs_model():
         
     try:
         from demucs.pretrained import get_model
-        demucs_model = get_model("htdemucs_ft")
+        demucs_model = get_model("htdemucs")
         demucs_model.eval()
-        print("✅ Loaded Demucs (htdemucs_ft) model successfully.")
+        print("✅ Loaded Demucs (htdemucs) model successfully.")
     except Exception as e:
         print("Error loading Demucs:", e)
     return demucs_model
@@ -312,7 +312,9 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
         f.write(raw_bytes)
 
     vocals_out = os.path.join(TEMP_DIR, f"vocals_{session_id}.wav")
-    music_out  = os.path.join(TEMP_DIR, f"music_{session_id}.wav")
+    drums_out  = os.path.join(TEMP_DIR, f"drums_{session_id}.wav")
+    bass_out   = os.path.join(TEMP_DIR, f"bass_{session_id}.wav")
+    other_out  = os.path.join(TEMP_DIR, f"other_{session_id}.wav")
 
     wav_path = to_stereo_wav_44k(raw_path)
     if wav_path is None or not os.path.isfile(wav_path):
@@ -326,7 +328,6 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             
             model = get_demucs_model()
             if model is not None:
-                # Move model to target device (GPU if available)
                 model.to(DEVICE)
                 
                 data, samplerate = sf.read(wav_path)
@@ -340,23 +341,23 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                     sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
 
                 source_names = list(model.sources)
-                vocals_idx   = source_names.index("vocals")
-                music_indices = [i for i in range(len(source_names)) if i != vocals_idx]
+                demucs_vocals = sources[source_names.index("vocals")].cpu().numpy().T
+                demucs_drums  = sources[source_names.index("drums")].cpu().numpy().T
+                demucs_bass   = sources[source_names.index("bass")].cpu().numpy().T
+                demucs_other  = sources[source_names.index("other")].cpu().numpy().T
 
-                demucs_vocals = sources[vocals_idx].cpu().numpy().T
-                music_stems   = sum(sources[i] for i in music_indices).cpu().numpy().T
-
-                # Normalize
-                v_max = np.max(np.abs(demucs_vocals))
-                m_max = np.max(np.abs(music_stems))
-                if v_max > 0:
-                    demucs_vocals = demucs_vocals / v_max * 0.95
-                if m_max > 0:
-                    music_stems  = music_stems  / m_max * 0.95
-
-                sf.write(vocals_out, demucs_vocals.astype(np.float32), model.samplerate)
-                sf.write(music_out,  music_stems.astype(np.float32),   model.samplerate)
-                print(f"✅ Demucs neural separation complete on {DEVICE.upper()}.")
+                # Normalize and write all 4 stems
+                for stem_data, path in [
+                    (demucs_vocals, vocals_out),
+                    (demucs_drums, drums_out),
+                    (demucs_bass, bass_out),
+                    (demucs_other, other_out)
+                ]:
+                    s_max = np.max(np.abs(stem_data))
+                    if s_max > 0:
+                        stem_data = stem_data / s_max * 0.95
+                    sf.write(path, stem_data.astype(np.float32), model.samplerate)
+                print(f"✅ Demucs 4-stem separation complete on {DEVICE.upper()}.")
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
@@ -411,7 +412,12 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             m = m / (np.max(np.abs(m)) + 1e-6) * 0.95
 
             sf.write(vocals_out, v.astype(np.float32), samplerate)
-            sf.write(music_out,  m.astype(np.float32), samplerate)
+            sf.write(other_out,  m.astype(np.float32), samplerate)
+            
+            # Write tiny silent buffers for drums & bass so frontend stays happy
+            silent_buf = np.zeros((100, 2), dtype=np.float32)
+            sf.write(drums_out, silent_buf, samplerate)
+            sf.write(bass_out,  silent_buf, samplerate)
             print("✅ High-Fidelity Psychoacoustic DSP Separation complete.")
         except Exception as e:
             print("SciPy error:", e)
@@ -422,7 +428,9 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
         "status": "success",
         "session_id": session_id,
         "vocals_url": f"/api/stem/vocals/{session_id}",
-        "music_url":  f"/api/stem/music/{session_id}",
+        "drums_url":  f"/api/stem/drums/{session_id}",
+        "bass_url":   f"/api/stem/bass/{session_id}",
+        "other_url":  f"/api/stem/other/{session_id}",
     }
 
 @app.post("/api/separate-audio")
@@ -433,10 +441,14 @@ async def separate_audio(file: UploadFile = File(...)):
 
 @app.get("/api/stem/{kind}/{session_id}")
 def download_stem_session(kind: str, session_id: str):
-    fname = f"vocals_{session_id}.wav" if kind == "vocals" else f"music_{session_id}.wav"
+    if kind not in ["vocals", "drums", "bass", "other", "music"]:
+        raise HTTPException(400, "نوع القناة غير صحيح")
+        
+    mapped_kind = "other" if kind == "music" else kind
+    fname = f"{mapped_kind}_{session_id}.wav"
     path  = os.path.join(TEMP_DIR, fname)
     if not os.path.isfile(path):
-        generic = "vocals_clean.wav" if kind == "vocals" else "music_clean.wav"
+        generic = f"{mapped_kind}_clean.wav"
         path = os.path.join(TEMP_DIR, generic)
     if not os.path.isfile(path):
         raise HTTPException(404, "لا يوجد ملف – قم بتشغيل الفصل أولاً")
@@ -444,7 +456,11 @@ def download_stem_session(kind: str, session_id: str):
 
 @app.get("/api/stem/{kind}")
 def download_stem_fallback(kind: str):
-    fname = "vocals_clean.wav" if kind == "vocals" else "music_clean.wav"
+    if kind not in ["vocals", "drums", "bass", "other", "music"]:
+        raise HTTPException(400, "نوع القناة غير صحيح")
+        
+    mapped_kind = "other" if kind == "music" else kind
+    fname = f"{mapped_kind}_clean.wav"
     path  = os.path.join(TEMP_DIR, fname)
     if not os.path.isfile(path):
         raise HTTPException(404, "لا يوجد ملف – قم بتشغيل الفصل أولاً")
