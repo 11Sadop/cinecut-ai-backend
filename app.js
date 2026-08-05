@@ -701,15 +701,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function togglePlay() {
     state.isPlaying = !state.isPlaying;
     if (state.isPlaying) {
-      videoPlayer?.play();
-      
       if (state.useIsolatedStems && state.stems.vocals.blobUrl) {
-        // Force mute video - silence original track completely
+        // ── MUTE FIRST, THEN PLAY ── so original audio NEVER plays even for 1ms
         if (videoPlayer) {
-          videoPlayer.muted = true;
+          videoPlayer.muted  = true;
           videoPlayer.volume = 0;
         }
-        // Play ONLY vocals (drums/bass/other are muted by default at volume 0)
+        videoPlayer?.play();
+
+        // Play isolated vocals in sync
         const vStem = state.stems.vocals;
         if (!vStem.audio) vStem.audio = new Audio(vStem.blobUrl);
         vStem.audio.currentTime = videoPlayer ? videoPlayer.currentTime : state.currentTime;
@@ -718,9 +718,10 @@ document.addEventListener('DOMContentLoaded', () => {
         currentStemAudio = vStem.audio;
       } else {
         if (videoPlayer) {
-          videoPlayer.muted = false;
+          videoPlayer.muted  = false;
           videoPlayer.volume = 1;
         }
+        videoPlayer?.play();
       }
 
       if (btnPlayPause) btnPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
