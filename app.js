@@ -369,64 +369,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await response.json();
 
-      // Unique session URL per upload
-      state.stems.vocals.url = `${AI_SERVER_URL}${data.vocals_url}`;
-      state.stems.drums.url  = `${AI_SERVER_URL}${data.drums_url}`;
-      state.stems.bass.url   = `${AI_SERVER_URL}${data.bass_url}`;
-      state.stems.other.url  = `${AI_SERVER_URL}${data.other_url}`;
+      // Support both old server format (music_url) and new 4-stem format (drums_url/bass_url/other_url)
+      const vocalsPath = data.vocals_url;
+      const drumsPath  = data.drums_url  || data.music_url;
+      const bassPath   = data.bass_url   || data.music_url;
+      const otherPath  = data.other_url  || data.music_url;
+
+      if (!vocalsPath) {
+        throw new Error("لم يرجع السيرفر رابط الصوت المعزول");
+      }
+
+      state.stems.vocals.url = `${AI_SERVER_URL}${vocalsPath}`;
+      state.stems.drums.url  = `${AI_SERVER_URL}${drumsPath}`;
+      state.stems.bass.url   = `${AI_SERVER_URL}${bassPath}`;
+      state.stems.other.url  = `${AI_SERVER_URL}${otherPath}`;
       state.useIsolatedStems = true;
 
-      // Fetch all 4 audio files as Blobs using the bypass header to bypass localtunnel reminder page
-      showAiStatus('📥 جاري تحميل مسارات الصوت المعزولة بدقة عالية...');
-      const [vRes, dRes, bRes, oRes] = await Promise.all([
-        fetch(state.stems.vocals.url, { headers: DEFAULT_FETCH_HEADERS }),
-        fetch(state.stems.drums.url, { headers: DEFAULT_FETCH_HEADERS }),
-        fetch(state.stems.bass.url, { headers: DEFAULT_FETCH_HEADERS }),
-        fetch(state.stems.other.url, { headers: DEFAULT_FETCH_HEADERS })
-      ]);
+      // Fetch vocals blob (most important - the clean voice)
+      showAiStatus('📥 جاري تحميل الصوت البشري النقي...');
+      const vRes = await fetch(state.stems.vocals.url, { headers: DEFAULT_FETCH_HEADERS });
 
-      if (!vRes.ok || !dRes.ok || !bRes.ok || !oRes.ok) {
-        throw new Error("تعذر تحميل ملفات الصوت من الخادم السحابي");
+      if (!vRes.ok) {
+        throw new Error("تعذر تحميل ملف الصوت النقي من الخادم");
       }
 
-      const [vBlob, dBlob, bBlob, oBlob] = await Promise.all([
-        vRes.blob(), dRes.blob(), bRes.blob(), oRes.blob()
-      ]);
-
+      const vBlob = await vRes.blob();
       state.stems.vocals.blobUrl = URL.createObjectURL(vBlob);
-      state.stems.drums.blobUrl  = URL.createObjectURL(dBlob);
-      state.stems.bass.blobUrl   = URL.createObjectURL(bBlob);
-      state.stems.other.blobUrl  = URL.createObjectURL(oBlob);
+      state.stems.vocals.audio   = new Audio(state.stems.vocals.blobUrl);
+      state.stems.vocals.audio.volume = 1.0;
 
-      // Create Synced Audio Objects for all 4 stems
-      Object.keys(state.stems).forEach(kind => {
-        const stem = state.stems[kind];
-        if (stem.audio) {
-          stem.audio.pause();
-          stem.audio = null;
-        }
-        stem.audio = new Audio(stem.blobUrl);
-      });
+      // Try to fetch other 3 stems in background (non-critical)
+      fetch(state.stems.drums.url, { headers: DEFAULT_FETCH_HEADERS })
+        .then(r => r.blob()).then(b => {
+          state.stems.drums.blobUrl = URL.createObjectURL(b);
+          state.stems.drums.audio = new Audio(state.stems.drums.blobUrl);
+          state.stems.drums.audio.volume = state.stems.drums.volume;
+          const el = document.getElementById('btn-dl-drums');
+          if (el) el.href = state.stems.drums.blobUrl;
+        }).catch(() => {});
 
-      // Mute original video audio track so ONLY isolated vocals play!
-      if (videoPlayer) {
-        videoPlayer.muted = true;
-      }
+      fetch(state.stems.bass.url, { headers: DEFAULT_FETCH_HEADERS })
+        .then(r => r.blob()).then(b => {
+          state.stems.bass.blobUrl = URL.createObjectURL(b);
+          state.stems.bass.audio = new Audio(state.stems.bass.blobUrl);
+          state.stems.bass.audio.volume = state.stems.bass.volume;
+          const el = document.getElementById('btn-dl-bass');
+          if (el) el.href = state.stems.bass.blobUrl;
+        }).catch(() => {});
 
-      // Update Download Links in UI
+      fetch(state.stems.other.url, { headers: DEFAULT_FETCH_HEADERS })
+        .then(r => r.blob()).then(b => {
+          state.stems.other.blobUrl = URL.createObjectURL(b);
+          state.stems.other.audio = new Audio(state.stems.other.blobUrl);
+          state.stems.other.audio.volume = state.stems.other.volume;
+          const el = document.getElementById('btn-dl-other');
+          if (el) el.href = state.stems.other.blobUrl;
+        }).catch(() => {});
+
+      // Update vocals download link
       const dlVocals = document.getElementById('btn-dl-vocals');
-      const dlDrums  = document.getElementById('btn-dl-drums');
-      const dlBass   = document.getElementById('btn-dl-bass');
-      const dlOther  = document.getElementById('btn-dl-other');
       if (dlVocals) dlVocals.href = state.stems.vocals.blobUrl;
-      if (dlDrums)  dlDrums.href  = state.stems.drums.blobUrl;
-      if (dlBass)   dlBass.href   = state.stems.bass.blobUrl;
-      if (dlOther)  dlOther.href  = state.stems.other.blobUrl;
 
-      stopModalProgress('تم حظر وإلغاء جميع الآلات والقيتارات واستبدال صوت الفيديو!', () => {
+      // ── CRITICAL: Force-mute video and keep it muted persistently ──
+      function forceVideoMute() {
+        if (videoPlayer && state.useIsolatedStems) {
+          videoPlayer.muted = true;
+          videoPlayer.volume = 0;
+        }
+      }
+      forceVideoMute();
+      // Keep polling every 200ms to ensure mute is never undone by browser
+      if (window._mutePollInterval) clearInterval(window._mutePollInterval);
+      window._mutePollInterval = setInterval(forceVideoMute, 200);
+
+      stopModalProgress('✅ تم فصل الموسيقى! الفيديو الآن بصوت نقي!', () => {
         const stemBox = document.getElementById('stem-controls-container');
         if (stemBox) stemBox.style.display = 'block';
-        showAiStatus(`🟢 تم عزل جميع الآلات وتوزيع قنوات الصوت بنجاح! 🥁🎤🎸🎹`);
+        showAiStatus('🟢 اضغط تشغيل لتسمع الصوت النقي بدون موسيقى! 🎤');
       });
 
     } catch (e) {
@@ -684,22 +703,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.isPlaying) {
       videoPlayer?.play();
       
-      if (state.useIsolatedStems) {
-        if (videoPlayer) videoPlayer.muted = true;
-        Object.keys(state.stems).forEach(kind => {
-          const stem = state.stems[kind];
-          if (stem.blobUrl) {
-            if (!stem.audio) {
-              stem.audio = new Audio(stem.blobUrl);
-            }
-            stem.audio.currentTime = videoPlayer ? videoPlayer.currentTime : state.currentTime;
-            stem.audio.volume = stem.volume;
-            stem.audio.playbackRate = videoPlayer ? videoPlayer.playbackRate : 1.0;
-            stem.audio.play().catch(e => console.log('stem play error:', e));
-          }
-        });
+      if (state.useIsolatedStems && state.stems.vocals.blobUrl) {
+        // Force mute video - silence original track completely
+        if (videoPlayer) {
+          videoPlayer.muted = true;
+          videoPlayer.volume = 0;
+        }
+        // Play ONLY vocals (drums/bass/other are muted by default at volume 0)
+        const vStem = state.stems.vocals;
+        if (!vStem.audio) vStem.audio = new Audio(vStem.blobUrl);
+        vStem.audio.currentTime = videoPlayer ? videoPlayer.currentTime : state.currentTime;
+        vStem.audio.volume = 1.0;
+        vStem.audio.play().catch(e => console.log('vocals play error:', e));
+        currentStemAudio = vStem.audio;
       } else {
-        if (videoPlayer) videoPlayer.muted = false;
+        if (videoPlayer) {
+          videoPlayer.muted = false;
+          videoPlayer.volume = 1;
+        }
       }
 
       if (btnPlayPause) btnPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
