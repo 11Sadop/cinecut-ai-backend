@@ -59,9 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4-Stem Audio Mixer Studio
     stems: {
       vocals: { url: null, blobUrl: null, audio: null, volume: 1.0 },
-      drums:  { url: null, blobUrl: null, audio: null, volume: 1.0 },
-      bass:   { url: null, blobUrl: null, audio: null, volume: 1.0 },
-      other:  { url: null, blobUrl: null, audio: null, volume: 1.0 }
+      drums:  { url: null, blobUrl: null, audio: null, volume: 0.0 },
+      bass:   { url: null, blobUrl: null, audio: null, volume: 0.0 },
+      other:  { url: null, blobUrl: null, audio: null, volume: 0.0 }
     },
     useIsolatedStems: false,
     
