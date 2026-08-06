@@ -439,10 +439,17 @@ document.addEventListener('DOMContentLoaded', () => {
       state.stems.bass.url   = `${AI_SERVER_URL}${bassPath}`;
       // ── CRITICAL GUARANTEE: Update videoPlayer.src with clean remuxed media file ──
       if (data.clean_media_url && videoPlayer) {
-        const currTime = videoPlayer.currentTime;
-        videoPlayer.src = `${AI_SERVER_URL}${data.clean_media_url}`;
+        const currTime = videoPlayer.currentTime || 0;
+        const cleanUrl = `${AI_SERVER_URL}${data.clean_media_url}`;
+        
+        videoPlayer.addEventListener('loadedmetadata', () => {
+          try {
+            videoPlayer.currentTime = currTime;
+          } catch(e) {}
+        }, { once: true });
+        
+        videoPlayer.src = cleanUrl;
         videoPlayer.load();
-        videoPlayer.currentTime = currTime;
         videoPlayer.muted  = false;
         videoPlayer.volume = 1.0;
       }
