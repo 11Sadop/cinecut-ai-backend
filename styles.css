@@ -47,6 +47,25 @@ body, html {
 }
 
 /* TOP NAVBAR */
+.capcut-direct-file-btn {
+  background: linear-gradient(135deg, #00f0ff, #0077ff);
+  color: #000;
+  font-family: 'Cairo', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+.capcut-direct-file-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.7);
+}
+
 .capcut-header {
   height: 52px;
   background: var(--capcut-bg-panel);

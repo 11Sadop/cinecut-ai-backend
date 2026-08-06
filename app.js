@@ -1206,6 +1206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('media-file-input')?.addEventListener('change', onFileInputChange);
     document.getElementById('media-file-input-top')?.addEventListener('change', onFileInputChange);
     document.getElementById('media-file-input-center')?.addEventListener('change', onFileInputChange);
+    document.getElementById('media-file-input-direct')?.addEventListener('change', onFileInputChange);
 
     // Dropzone Drag & Drop
     const dropzone = document.getElementById('dropzone');
