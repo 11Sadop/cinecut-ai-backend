@@ -1001,83 +1001,38 @@ document.addEventListener('DOMContentLoaded', () => {
     state.mediaUrl  = URL.createObjectURL(file);
 
     // Reset stem URLs so new file NEVER plays old audio
-    state.useIsolatedStems = false;
     state.isolatedVocalsUrl = null;
     state.isolatedMusicUrl  = null;
     if (currentStemAudio) {
       currentStemAudio.pause();
       currentStemAudio = null;
     }
-    if (videoPlayer) {
-      videoPlayer.muted = false;
-      videoPlayer.volume = 1.0;
-    }
+    videoPlayer.muted = false;
 
     const stemBox = document.getElementById('stem-controls-container');
     if (stemBox) stemBox.style.display = 'none';
 
-    // Hide center upload prompt box once a file is loaded
-    const centerPrompt = document.getElementById('center-upload-prompt');
-    if (centerPrompt) centerPrompt.style.display = 'none';
-
-    // Show Media Item Badge in Grid
-    const grid = document.getElementById('media-items-grid');
-    if (grid) {
-      grid.innerHTML = `
-        <div class="media-library-card active" style="padding: 10px; background: rgba(0,240,255,0.08); border: 1px solid var(--capcut-cyan); border-radius: 8px; margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-          <i class="fa-solid ${file.type.startsWith('audio') ? 'fa-music' : 'fa-film'}" style="font-size: 20px; color: var(--capcut-cyan);"></i>
-          <div style="display: flex; flex-direction: column; overflow: hidden;">
-            <span style="font-size: 13px; font-weight: bold; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${file.name}</span>
-            <span style="font-size: 11px; color: #888;">${(file.size / 1024 / 1024).toFixed(1)} MB</span>
-          </div>
-        </div>
-      `;
-    }
-
-    // Render Glowing Audio Visualizer Card if media is audio
-    let audioCard = document.getElementById('player-audio-card');
-    if (file.type.startsWith('audio') || file.name.endsWith('.mp3') || file.name.endsWith('.wav') || file.name.endsWith('.m4a') || file.name.endsWith('.aac')) {
-      videoPlayer.style.display = 'none';
-      if (!audioCard) {
-        audioCard = document.createElement('div');
-        audioCard.id = 'player-audio-card';
-        audioCard.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; background:radial-gradient(circle, rgba(0,240,255,0.12) 0%, rgba(12,12,15,0.95) 75%); border:1px solid rgba(0,240,255,0.3); border-radius:12px; z-index:10; padding:20px; text-align:center;';
-        document.getElementById('player-wrapper')?.appendChild(audioCard);
-      }
-      audioCard.innerHTML = `
-        <i class="fa-solid fa-music text-cyan" style="font-size: 3.8rem; filter: drop-shadow(0 0 15px var(--capcut-cyan)); animation: pulseAnim 1.5s infinite;"></i>
-        <h3 style="color:#fff; font-size:1.15rem; font-weight:800; margin:0; word-break:break-all;">${file.name}</h3>
-        <span style="font-size:0.82rem; color:var(--capcut-gold); background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.3); padding:4px 14px; border-radius:20px;">🎵 ملف صوتي جاهز 100% للفصل والتفريغ النصي</span>
-      `;
-      audioCard.style.display = 'flex';
-    } else {
-      videoPlayer.style.display = 'block';
-      if (audioCard) audioCard.style.display = 'none';
-    }
-
-    let isInitialized = false;
-    const initMediaMetadata = () => {
-      if (isInitialized) return;
-      isInitialized = true;
+    videoPlayer.src = state.mediaUrl;
+    videoPlayer.onloadedmetadata = () => {
       state.duration = videoPlayer.duration || 15.0;
-      if (isNaN(state.duration) || state.duration === Infinity || state.duration <= 0) {
-        state.duration = 15.0;
-      }
       
-      state.tracks.video = [{ id: 'v1', name: file.name, start: 0, duration: state.duration }];
-      state.tracks.audio = [{ id: 'a1', name: 'الصوت الأصلي', start: 0, duration: state.duration }];
+      if (state.tracks.video && state.tracks.video[0]) {
+        state.tracks.video[0].name     = file.name;
+        state.tracks.video[0].duration = state.duration;
+      } else {
+        state.tracks.video = [{ id: 'v1', name: file.name, start: 0, duration: state.duration }];
+      }
+
+      if (state.tracks.audio && state.tracks.audio[0]) {
+        state.tracks.audio[0].duration = state.duration;
+      } else {
+        state.tracks.audio = [{ id: 'a1', name: 'الصوت الأصلي', start: 0, duration: state.duration }];
+      }
 
       updateTimeDisplay();
       renderTimelineClips();
-      showAiStatus(`✅ تم استيراد الملف وقراءته بنجاح: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
+      showAiStatus(`✅ تم استيراد الملف الجديد: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
     };
-
-    videoPlayer.onloadedmetadata = initMediaMetadata;
-    videoPlayer.src = state.mediaUrl;
-    videoPlayer.load();
-
-    // Instant Fallback if metadata loaded fast
-    setTimeout(initMediaMetadata, 250);
   }
 
   // ─── EVENT LISTENERS ─────────────────────────────────────────────────────
@@ -1216,22 +1171,10 @@ document.addEventListener('DOMContentLoaded', () => {
       showAiStatus(`تم إضافة النص بـ خط (${state.activeFontFamily}) على الفيديو! ✨`);
     });
 
-    // Quick AI Toolbar listeners (prominent direct buttons above player)
-    document.getElementById('btn-quick-separate')?.addEventListener('click', runRealDemucsSeparation);
-    document.getElementById('btn-quick-stt')?.addEventListener('click', runRealWhisperSTT);
-    document.getElementById('btn-quick-play')?.addEventListener('click', togglePlay);
-
-    // File upload handlers (both top header button & sidebar dropzone)
-    const onFileInputChange = (e) => {
-      if (e.target.files && e.target.files[0]) {
-        handleFileSelect(e.target.files[0]);
-        e.target.value = '';
-      }
-    };
-    document.getElementById('media-file-input')?.addEventListener('change', onFileInputChange);
-    document.getElementById('media-file-input-top')?.addEventListener('change', onFileInputChange);
-    document.getElementById('media-file-input-center')?.addEventListener('change', onFileInputChange);
-    document.getElementById('media-file-input-direct')?.addEventListener('change', onFileInputChange);
+    // File upload
+    document.getElementById('media-file-input')?.addEventListener('change', e => {
+      handleFileSelect(e.target.files[0]);
+    });
 
     // Dropzone Drag & Drop
     const dropzone = document.getElementById('dropzone');

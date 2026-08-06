@@ -47,25 +47,6 @@ body, html {
 }
 
 /* TOP NAVBAR */
-.capcut-direct-file-btn {
-  background: linear-gradient(135deg, #00f0ff, #0077ff);
-  color: #000;
-  font-family: 'Cairo', sans-serif;
-  font-size: 1rem;
-  font-weight: 800;
-  padding: 10px 24px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
-  transition: all 0.2s ease;
-  display: inline-block;
-}
-.capcut-direct-file-btn:hover {
-  transform: scale(1.04);
-  box-shadow: 0 0 25px rgba(0, 240, 255, 0.7);
-}
-
 .capcut-header {
   height: 52px;
   background: var(--capcut-bg-panel);
@@ -473,25 +454,20 @@ input:checked + .switch-slider:before { transform: translateX(16px); background-
   position: relative;
 }
 
-#player-wrapper {
+.player-frame-box {
   position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 280px;
-  max-height: calc(100vh - 280px);
+  max-width: 100%;
+  max-height: 100%;
   box-shadow: 0 12px 36px rgba(0,0,0,0.9);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: #060608;
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 #main-video-player {
-  width: 100%;
-  height: 100%;
-  min-height: 260px;
   max-width: 100%;
   max-height: calc(100vh - 280px);
   display: block;
@@ -827,16 +803,14 @@ input:checked + .switch-slider:before { transform: translateX(16px); background-
     display: none !important;
   }
 
-  /* Workspace Flexible Layout - Sidebar Always Accessible */
-  .capcut-main-workspace { flex-direction: row; }
+  /* Workspace Column Layout */
+  .capcut-main-workspace { flex-direction: column; }
   .capcut-left-panel {
-    position: relative;
-    top: 0; right: 0; height: 100%; width: 300px;
-    min-width: 260px;
-    transform: none !important;
-    box-shadow: none;
-    z-index: 10;
+    position: absolute; top: 0; right: 0; height: 100%; width: 290px;
+    transform: translateX(100%); box-shadow: -5px 0 20px rgba(0,0,0,0.8);
+    z-index: 500;
   }
+  .capcut-left-panel.open { transform: translateX(0); }
   
   /* Video Player Sizing on Mobile */
   .capcut-center-viewport { flex: 1; }
