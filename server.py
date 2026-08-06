@@ -373,7 +373,27 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                 demucs_drums  = sources[source_names.index("drums")].cpu().numpy().T if "drums" in source_names else sources[0].cpu().numpy().T
                 demucs_bass   = sources[source_names.index("bass")].cpu().numpy().T if "bass" in source_names else sources[0].cpu().numpy().T
 
-                # Normalize and write all 4 stems
+                # RMS Noise Gating: Silence quiet background music leakage during speech pauses
+                mono_v = np.mean(demucs_vocals, axis=1) if len(demucs_vocals.shape) > 1 else demucs_vocals
+                frame_len = int(model.samplerate * 0.03)
+                hop_len   = int(model.samplerate * 0.01)
+                n_frames  = (len(mono_v) - frame_len) // hop_len + 1
+                rms_arr   = np.zeros(len(mono_v), dtype=np.float32)
+                
+                for idx_f in range(n_frames):
+                    s_idx = idx_f * hop_len
+                    e_idx = s_idx + frame_len
+                    f_rms = np.sqrt(np.mean(mono_v[s_idx:e_idx] ** 2) + 1e-9)
+                    rms_arr[s_idx:e_idx] = np.maximum(rms_arr[s_idx:e_idx], f_rms)
+                
+                rms_db = 20 * np.log10(rms_arr + 1e-7)
+                gate_gain = np.clip((rms_db - (-34.0)) / 6.0, 0.0, 1.0)
+                if len(demucs_vocals.shape) > 1:
+                    gate_gain = gate_gain[:, np.newaxis]
+                
+                demucs_vocals = demucs_vocals * gate_gain
+
+                # Write all 4 stems without artificial peak boosting of quiet residuals
                 for stem_data, path in [
                     (demucs_vocals, vocals_out),
                     (demucs_drums, drums_out),
@@ -381,10 +401,10 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                     (demucs_other, other_out)
                 ]:
                     s_max = np.max(np.abs(stem_data))
-                    if s_max > 0:
-                        stem_data = stem_data / s_max * 0.95
+                    if s_max > 1.0:
+                        stem_data = stem_data / s_max
                     sf.write(path, stem_data.astype(np.float32), model.samplerate)
-                print(f" Demucs 4-stem + PyTorch GPU Spectral Cancellation complete on {DEVICE.upper()}.")
+                print(f" Demucs 4-stem + RMS Noise Gate complete on {DEVICE.upper()}.")
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
