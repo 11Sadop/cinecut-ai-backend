@@ -351,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn("SpeechRec launch failed:", err);
       }
     }
+  }
 
   function finalizeClientStt(captured) {
     if (!captured || captured.length === 0) {
