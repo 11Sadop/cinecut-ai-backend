@@ -268,7 +268,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const response = await fetch(`${AI_SERVER_URL}/api/transcribe`, {
         method: 'POST',
-        headers: DEFAULT_FETCH_HEADERS,
         body: formData
       });
 
@@ -423,7 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const response = await fetch(`${AI_SERVER_URL}/api/separate-audio`, {
         method: 'POST',
-        headers: DEFAULT_FETCH_HEADERS,
         body: formData
       });
 
@@ -1071,7 +1069,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       updateTimeDisplay();
       renderTimelineClips();
-      showAiStatus(`✅ تم استيراد الملف وقراءته بنجاح: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
+      showAiStatus(`✅ تم استيراد الملف بنجاح! 🚀 جاري عزل الموسيقى وتنقية الصوت تلقائياً عبر GPU...`);
+      
+      // Auto-trigger Demucs vocal isolation on file import
+      setTimeout(() => {
+        runRealDemucsSeparation();
+      }, 400);
     };
 
     videoPlayer.onloadedmetadata = initMediaMetadata;
