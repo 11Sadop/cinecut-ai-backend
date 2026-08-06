@@ -1017,6 +1017,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const stemBox = document.getElementById('stem-controls-container');
     if (stemBox) stemBox.style.display = 'none';
 
+    // Hide center upload prompt box once a file is loaded
+    const centerPrompt = document.getElementById('center-upload-prompt');
+    if (centerPrompt) centerPrompt.style.display = 'none';
+
     // Show Media Item Badge in Grid
     const grid = document.getElementById('media-items-grid');
     if (grid) {
@@ -1201,6 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     document.getElementById('media-file-input')?.addEventListener('change', onFileInputChange);
     document.getElementById('media-file-input-top')?.addEventListener('change', onFileInputChange);
+    document.getElementById('media-file-input-center')?.addEventListener('change', onFileInputChange);
 
     // Dropzone Drag & Drop
     const dropzone = document.getElementById('dropzone');
