@@ -264,10 +264,12 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
                 segments, info = model.transcribe(
                     wav_path,
                     beam_size=5,
-                    temperature=[0.0, 0.2, 0.4],
+                    temperature=0.0,
                     language="ar",
                     vad_filter=True,
-                    vad_parameters=dict(min_silence_duration_ms=400)
+                    vad_parameters=dict(min_silence_duration_ms=400),
+                    initial_prompt="تفريغ نصي دقيق باللغة العربية الفصحى والأحاديث والكلمات المنطوقة.",
+                    condition_on_previous_text=False
                 )
                 for s in segments:
                     t_txt = clean_arabic_lyric(s.text.strip())
@@ -350,42 +352,39 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
 
                 source_names = list(model.sources)
                 print(f"Demucs active sources: {source_names}")
-                demucs_vocals = sources[source_names.index("vocals")].cpu().numpy().T
-                demucs_drums  = sources[source_names.index("drums")].cpu().numpy().T
-                demucs_bass   = sources[source_names.index("bass")].cpu().numpy().T
                 
-                # Combine remaining instrument stems (guitar, piano, other) into 'other' track
-                other_indices = [i for i, name in enumerate(source_names) if name in ["guitar", "piano", "other"]]
-                demucs_other = sum(sources[i].cpu().numpy().T for i in other_indices)
+                v_idx = source_names.index("vocals")
+                vocal_tensor = sources[v_idx] # [channels, samples]
+                
+                # Combine remaining instrument stems (guitar, piano, drums, bass, other)
+                inst_indices = [i for i, name in enumerate(source_names) if i != v_idx]
+                inst_tensor = sum(sources[i] for i in inst_indices)
 
-                # Total Instrument Footprint (Drums + Bass + Guitars + Pianos)
-                music_total_stems = demucs_drums + demucs_bass + demucs_other
+                # PyTorch STFT Wiener Spectral Gate on GPU (Instant sub-second execution!)
+                n_fft = 2048
+                hop_length = 512
+                window = torch.hann_window(n_fft).to(DEVICE)
 
-                # Wiener Spectral Gate: Hard-zero any guitar/piano/music residual
-                for ch in range(demucs_vocals.shape[1]):
-                    v_ch = demucs_vocals[:, ch]
-                    m_ch = music_total_stems[:, ch]
-                    f_v, t_v, Z_v = sig.stft(v_ch, fs=model.samplerate, nperseg=1024)
-                    _, _, Z_m   = sig.stft(m_ch, fs=model.samplerate, nperseg=1024)
-                    
-                    mag_v = np.abs(Z_v)
-                    mag_m = np.abs(Z_m)
-                    
-                    # Compute Wiener Spectral Gate Mask
-                    eps = 1e-7
-                    vocal_wiener_mask = np.maximum(0.0, 1.0 - (1.2 * mag_m / (mag_v + eps)) ** 2)
-                    clean_mag_v = mag_v * vocal_wiener_mask
+                v_stft = torch.stft(vocal_tensor, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
+                m_stft = torch.stft(inst_tensor, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
 
-                    # Apply Vocal Formant Bandpass (Cut < 90Hz sub-bass and > 3800Hz cymbals)
-                    for i_f, freq in enumerate(f_v):
-                        if freq < 90 or freq > 3800:
-                            clean_mag_v[i_f, :] *= 0.05
+                v_mag = torch.abs(v_stft)
+                m_mag = torch.abs(m_stft)
 
-                    clean_Z_v = clean_mag_v * np.exp(1j * np.angle(Z_v))
-                    _, v_clean_ch = sig.istft(clean_Z_v, fs=model.samplerate)
-                    
-                    min_l = min(len(demucs_vocals), len(v_clean_ch))
-                    demucs_vocals[:min_l, ch] = v_clean_ch[:min_l]
+                eps = 1e-7
+                wiener_mask = torch.clamp(1.0 - (1.2 * m_mag / (v_mag + eps)) ** 2, min=0.0, max=1.0)
+                
+                # Formant bandpass: Attenuate < 90Hz and > 3800Hz
+                freqs = torch.linspace(0, model.samplerate / 2, steps=v_mag.shape[1]).to(DEVICE)
+                band_mask = ((freqs >= 90) & (freqs <= 3800)).float().unsqueeze(0).unsqueeze(-1)
+                
+                clean_v_stft = v_stft * (wiener_mask * 0.95 + 0.05) * (band_mask * 0.95 + 0.05)
+                clean_v_tensor = torch.istft(clean_v_stft, n_fft=n_fft, hop_length=hop_length, window=window, length=vocal_tensor.shape[-1])
+
+                demucs_vocals = clean_v_tensor.cpu().numpy().T
+                demucs_drums  = sources[source_names.index("drums")].cpu().numpy().T if "drums" in source_names else sources[0].cpu().numpy().T
+                demucs_bass   = sources[source_names.index("bass")].cpu().numpy().T if "bass" in source_names else sources[0].cpu().numpy().T
+                demucs_other  = inst_tensor.cpu().numpy().T
 
                 # Normalize and write all 4 stems
                 for stem_data, path in [
@@ -398,7 +397,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                     if s_max > 0:
                         stem_data = stem_data / s_max * 0.95
                     sf.write(path, stem_data.astype(np.float32), model.samplerate)
-                print(f"✅ Demucs 4-stem + Guitar/Piano cancellation complete on {DEVICE.upper()}.")
+                print(f"✅ Demucs 4-stem + PyTorch GPU Spectral Cancellation complete on {DEVICE.upper()}.")
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 

@@ -401,14 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const titleText = isRender 
       ? 'جاري إيقاظ الخادم السحابي الذكي وعزل الموسيقى (قد يستغرق 40 ثانية للتشغيل الأول)...'
       : 'جاري عزل وتجريف الموسيقى والقيتار بالذكاء الاصطناعي...';
-    let estimatedSec = 15;
-    if (isRender) {
-      estimatedSec = 45;
-    } else if (state.isGpu) {
-      estimatedSec = Math.max(3, Math.ceil(state.duration * 0.05 + 1.5));
-    } else {
-      estimatedSec = Math.max(6, Math.ceil(state.duration * 0.35 + 3.0));
-    }
+    let estimatedSec = isRender ? 40 : (state.isGpu ? 3 : 8);
 
     startModalProgress(
       estimatedSec,
