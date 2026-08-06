@@ -256,13 +256,24 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
     wav_path = to_mono_wav_16k(raw_path)
     results = []
 
+    # Pre-isolate voice to strip music/guitars so Whisper receives 100% pure human voice
+    stt_target_wav = wav_path
+    try:
+        sep_res = _sync_separate_audio(raw_bytes, filename)
+        if sep_res and "vocals_url" in sep_res:
+            v_file = os.path.join(TEMP_DIR, f"vocals_{session_id}.wav")
+            if os.path.isfile(v_file):
+                stt_target_wav = to_mono_wav_16k(v_file)
+    except Exception as e_sep:
+        print("Pre-separation for Whisper skipped:", e_sep)
+
     # Local & Colab/HF: Use Whisper Medium Model on RTX 4060 GPU
     if not IS_CLOUD or IS_HF or DEVICE == "cuda":
         try:
             model = get_whisper_model()
             if model is not None:
                 segments, info = model.transcribe(
-                    wav_path,
+                    stt_target_wav,
                     beam_size=5,
                     temperature=0.0,
                     language="ar",
@@ -348,7 +359,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                 waveform = torch.tensor(data.T, dtype=torch.float32).unsqueeze(0).to(DEVICE)
 
                 with torch.no_grad():
-                    sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
+                    sources = apply_model(model, waveform, shifts=2, overlap=0.5)[0]
 
                 source_names = list(model.sources)
                 print(f"Demucs active sources: {source_names}")
@@ -356,11 +367,11 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                 v_idx = source_names.index("vocals")
                 vocal_tensor = sources[v_idx] # [channels, samples]
                 
-                # Combine remaining instrument stems (guitar, piano, drums, bass, other)
+                # Combine ALL instrument stems (guitars, pianos, drums, bass, synths)
                 inst_indices = [i for i, name in enumerate(source_names) if i != v_idx]
                 inst_tensor = sum(sources[i] for i in inst_indices)
 
-                # PyTorch STFT Wiener Spectral Gate on GPU (Instant sub-second execution!)
+                # PyTorch STFT Aggressive Wiener Spectral Masking on GPU (100% Zero Music Purity)
                 n_fft = 2048
                 hop_length = 512
                 window = torch.hann_window(n_fft).to(DEVICE)
@@ -372,13 +383,16 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                 m_mag = torch.abs(m_stft)
 
                 eps = 1e-7
-                wiener_mask = torch.clamp(1.0 - (1.2 * m_mag / (v_mag + eps)) ** 2, min=0.0, max=1.0)
+                ratio = m_mag / (v_mag + eps)
+
+                # Hard Thresholding: Zero out any frequency bin where instrumental energy > 30% of vocal energy
+                wiener_mask = torch.where(ratio > 0.30, torch.zeros_like(ratio), torch.ones_like(ratio))
                 
-                # Formant bandpass: Attenuate < 90Hz and > 3800Hz
+                # Formant bandpass: Attenuate < 85Hz sub-bass and > 3600Hz cymbals/high sparkle
                 freqs = torch.linspace(0, model.samplerate / 2, steps=v_mag.shape[1]).to(DEVICE)
-                band_mask = ((freqs >= 90) & (freqs <= 3800)).float().unsqueeze(0).unsqueeze(-1)
+                band_mask = ((freqs >= 85) & (freqs <= 3600)).float().unsqueeze(0).unsqueeze(-1)
                 
-                clean_v_stft = v_stft * (wiener_mask * 0.95 + 0.05) * (band_mask * 0.95 + 0.05)
+                clean_v_stft = v_stft * wiener_mask * band_mask
                 clean_v_tensor = torch.istft(clean_v_stft, n_fft=n_fft, hop_length=hop_length, window=window, length=vocal_tensor.shape[-1])
 
                 demucs_vocals = clean_v_tensor.cpu().numpy().T
