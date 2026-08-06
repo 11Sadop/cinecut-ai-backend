@@ -1036,6 +1036,27 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }
 
+    // Render Glowing Audio Visualizer Card if media is audio
+    let audioCard = document.getElementById('player-audio-card');
+    if (file.type.startsWith('audio') || file.name.endsWith('.mp3') || file.name.endsWith('.wav') || file.name.endsWith('.m4a') || file.name.endsWith('.aac')) {
+      videoPlayer.style.display = 'none';
+      if (!audioCard) {
+        audioCard = document.createElement('div');
+        audioCard.id = 'player-audio-card';
+        audioCard.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; background:radial-gradient(circle, rgba(0,240,255,0.12) 0%, rgba(12,12,15,0.95) 75%); border:1px solid rgba(0,240,255,0.3); border-radius:12px; z-index:10; padding:20px; text-align:center;';
+        document.getElementById('player-wrapper')?.appendChild(audioCard);
+      }
+      audioCard.innerHTML = `
+        <i class="fa-solid fa-music text-cyan" style="font-size: 3.8rem; filter: drop-shadow(0 0 15px var(--capcut-cyan)); animation: pulseAnim 1.5s infinite;"></i>
+        <h3 style="color:#fff; font-size:1.15rem; font-weight:800; margin:0; word-break:break-all;">${file.name}</h3>
+        <span style="font-size:0.82rem; color:var(--capcut-gold); background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.3); padding:4px 14px; border-radius:20px;">🎵 ملف صوتي جاهز 100% للفصل والتفريغ النصي</span>
+      `;
+      audioCard.style.display = 'flex';
+    } else {
+      videoPlayer.style.display = 'block';
+      if (audioCard) audioCard.style.display = 'none';
+    }
+
     let isInitialized = false;
     const initMediaMetadata = () => {
       if (isInitialized) return;
