@@ -250,16 +250,17 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
     wav_path = to_mono_wav_16k(raw_path)
     results = []
 
-    # Local & Colab/HF: Use Whisper Medium Model
+    # Local & Colab/HF: Use Whisper Medium Model on RTX 4060 GPU
     if not IS_CLOUD or IS_HF or DEVICE == "cuda":
         try:
             model = get_whisper_model()
             if model is not None:
                 segments, info = model.transcribe(
                     wav_path,
-                    beam_size=10,
+                    beam_size=5,
                     temperature=0.0,
                     language="ar",
+                    vad_filter=True,
                     initial_prompt="كلمات أغنية عربية رومانسية ومحي مشتاق ليك ولقاك وعم بناديك والليل بطوله"
                 )
                 for s in segments:
@@ -320,10 +321,11 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
     if wav_path is None or not os.path.isfile(wav_path):
         raise HTTPException(500, "تعذر تحويل الملف الصوتي")
 
-    # Local, Colab or HF Mode: Use Demucs Neural Model
+    # Local, Colab or HF Mode: Use Demucs Neural Model with Guitar & Piano Cancellation
     if not IS_CLOUD or IS_HF or DEVICE == "cuda":
         try:
             import soundfile as sf
+            from scipy import signal as sig
             from demucs.apply import apply_model
             
             model = get_demucs_model()
@@ -346,6 +348,23 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                 demucs_bass   = sources[source_names.index("bass")].cpu().numpy().T
                 demucs_other  = sources[source_names.index("other")].cpu().numpy().T
 
+                # Active Cross-Spectral Suppression for Guitars, Pianos, & Oud
+                for ch in range(demucs_vocals.shape[1]):
+                    v_ch = demucs_vocals[:, ch]
+                    o_ch = demucs_other[:, ch]
+                    f_v, t_v, Z_v = sig.stft(v_ch, fs=model.samplerate, nperseg=1024)
+                    _, _, Z_o   = sig.stft(o_ch, fs=model.samplerate, nperseg=1024)
+                    
+                    mag_v = np.abs(Z_v)
+                    mag_o = np.abs(Z_o)
+                    
+                    clean_mag_v = np.maximum(0, mag_v - 0.65 * mag_o)
+                    clean_Z_v = clean_mag_v * np.exp(1j * np.angle(Z_v))
+                    _, v_clean_ch = sig.istft(clean_Z_v, fs=model.samplerate)
+                    
+                    min_l = min(len(demucs_vocals), len(v_clean_ch))
+                    demucs_vocals[:min_l, ch] = v_clean_ch[:min_l]
+
                 # Normalize and write all 4 stems
                 for stem_data, path in [
                     (demucs_vocals, vocals_out),
@@ -357,7 +376,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                     if s_max > 0:
                         stem_data = stem_data / s_max * 0.95
                     sf.write(path, stem_data.astype(np.float32), model.samplerate)
-                print(f"✅ Demucs 4-stem separation complete on {DEVICE.upper()}.")
+                print(f"✅ Demucs 4-stem + Guitar/Piano cancellation complete on {DEVICE.upper()}.")
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
