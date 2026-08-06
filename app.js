@@ -1002,38 +1002,58 @@ document.addEventListener('DOMContentLoaded', () => {
     state.mediaUrl  = URL.createObjectURL(file);
 
     // Reset stem URLs so new file NEVER plays old audio
+    state.useIsolatedStems = false;
     state.isolatedVocalsUrl = null;
     state.isolatedMusicUrl  = null;
     if (currentStemAudio) {
       currentStemAudio.pause();
       currentStemAudio = null;
     }
-    videoPlayer.muted = false;
+    if (videoPlayer) {
+      videoPlayer.muted = false;
+      videoPlayer.volume = 1.0;
+    }
 
     const stemBox = document.getElementById('stem-controls-container');
     if (stemBox) stemBox.style.display = 'none';
 
-    videoPlayer.src = state.mediaUrl;
-    videoPlayer.onloadedmetadata = () => {
-      state.duration = videoPlayer.duration || 15.0;
-      
-      if (state.tracks.video && state.tracks.video[0]) {
-        state.tracks.video[0].name     = file.name;
-        state.tracks.video[0].duration = state.duration;
-      } else {
-        state.tracks.video = [{ id: 'v1', name: file.name, start: 0, duration: state.duration }];
-      }
+    // Show Media Item Badge in Grid
+    const grid = document.getElementById('media-items-grid');
+    if (grid) {
+      grid.innerHTML = `
+        <div class="media-library-card active" style="padding: 10px; background: rgba(0,240,255,0.08); border: 1px solid var(--capcut-cyan); border-radius: 8px; margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+          <i class="fa-solid ${file.type.startsWith('audio') ? 'fa-music' : 'fa-film'}" style="font-size: 20px; color: var(--capcut-cyan);"></i>
+          <div style="display: flex; flex-direction: column; overflow: hidden;">
+            <span style="font-size: 13px; font-weight: bold; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${file.name}</span>
+            <span style="font-size: 11px; color: #888;">${(file.size / 1024 / 1024).toFixed(1)} MB</span>
+          </div>
+        </div>
+      `;
+    }
 
-      if (state.tracks.audio && state.tracks.audio[0]) {
-        state.tracks.audio[0].duration = state.duration;
-      } else {
-        state.tracks.audio = [{ id: 'a1', name: 'الصوت الأصلي', start: 0, duration: state.duration }];
+    let isInitialized = false;
+    const initMediaMetadata = () => {
+      if (isInitialized) return;
+      isInitialized = true;
+      state.duration = videoPlayer.duration || 15.0;
+      if (isNaN(state.duration) || state.duration === Infinity || state.duration <= 0) {
+        state.duration = 15.0;
       }
+      
+      state.tracks.video = [{ id: 'v1', name: file.name, start: 0, duration: state.duration }];
+      state.tracks.audio = [{ id: 'a1', name: 'الصوت الأصلي', start: 0, duration: state.duration }];
 
       updateTimeDisplay();
       renderTimelineClips();
-      showAiStatus(`✅ تم استيراد الملف الجديد: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
+      showAiStatus(`✅ تم استيراد الملف وقراءته بنجاح: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
     };
+
+    videoPlayer.onloadedmetadata = initMediaMetadata;
+    videoPlayer.src = state.mediaUrl;
+    videoPlayer.load();
+
+    // Instant Fallback if metadata loaded fast
+    setTimeout(initMediaMetadata, 250);
   }
 
   // ─── EVENT LISTENERS ─────────────────────────────────────────────────────
