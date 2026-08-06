@@ -11,7 +11,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- CapCut Style CSS -->
-  <link rel="stylesheet" href="styles.css?v=20260806_v30">
+  <link rel="stylesheet" href="styles.css?v=20260806_v35">
 </head>
 <body class="capcut-dark-theme">
 
@@ -60,7 +60,8 @@
         </div>
       </div>
 
-      <div class="header-left-group">
+        <label for="media-file-input-top" class="btn btn-capcut-cyan" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;"><i class="fa-solid fa-folder-open"></i> استيراد ملف</label>
+        <input type="file" id="media-file-input-top" accept="video/*,audio/*" style="display:none;">
         <button class="btn btn-dark-outline hide-mobile" id="btn-sample-demo"><i class="fa-solid fa-wand-sparkles"></i> عينة تجريبية</button>
         <button class="btn btn-capcut-cyan" id="btn-export-video"><i class="fa-solid fa-arrow-up-from-bracket"></i> تصدير (4K)</button>
       </div>
@@ -128,12 +129,12 @@
             <div class="tab-header">
               <h4>مكتبة الميديا والوسائط</h4>
             </div>
-            <div class="capcut-upload-box" id="dropzone">
+            <div class="capcut-upload-box" id="dropzone" style="cursor:pointer;" onclick="document.getElementById('media-file-input').click()">
               <i class="fa-solid fa-cloud-arrow-up upload-ico"></i>
               <p>اسحب الفيديو أو الصوت هنا</p>
               <span>يدعم MP4, MOV, MP3, WAV</span>
               <input type="file" id="media-file-input" accept="video/*,audio/*" style="display:none;">
-              <button class="btn btn-capcut-sm" onclick="document.getElementById('media-file-input').click()"><i class="fa-solid fa-plus"></i> استيراد ملفات</button>
+              <label for="media-file-input" class="btn btn-capcut-sm" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-top:8px;" onclick="event.stopPropagation();"><i class="fa-solid fa-plus"></i> اضغط لاستيراد ملف</label>
             </div>
             <div class="media-library-grid" id="media-items-grid">
               <!-- Uploaded Media items injected here -->
@@ -707,6 +708,6 @@
 
   </div>
 
-  <script src="app.js?v=20260806_v30"></script>
+  <script src="app.js?v=20260806_v35"></script>
 </body>
 </html>

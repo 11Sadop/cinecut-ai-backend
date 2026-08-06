@@ -1192,10 +1192,15 @@ document.addEventListener('DOMContentLoaded', () => {
       showAiStatus(`تم إضافة النص بـ خط (${state.activeFontFamily}) على الفيديو! ✨`);
     });
 
-    // File upload
-    document.getElementById('media-file-input')?.addEventListener('change', e => {
-      handleFileSelect(e.target.files[0]);
-    });
+    // File upload handlers (both top header button & sidebar dropzone)
+    const onFileInputChange = (e) => {
+      if (e.target.files && e.target.files[0]) {
+        handleFileSelect(e.target.files[0]);
+        e.target.value = '';
+      }
+    };
+    document.getElementById('media-file-input')?.addEventListener('change', onFileInputChange);
+    document.getElementById('media-file-input-top')?.addEventListener('change', onFileInputChange);
 
     // Dropzone Drag & Drop
     const dropzone = document.getElementById('dropzone');
