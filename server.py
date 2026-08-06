@@ -24,7 +24,7 @@ IS_CLOUD = os.environ.get("RENDER") is not None or os.environ.get("PORT") is not
 # Detect GPU availability
 import torch
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"📡 AI Engine Device Auto-Detect: {DEVICE.upper()}")
+print(f" AI Engine Device Auto-Detect: {DEVICE.upper()}")
 
 # Limit PyTorch CPU thread allocation locally
 if DEVICE == "cpu" and (not IS_CLOUD or IS_HF):
@@ -49,7 +49,7 @@ def get_whisper_model():
     try:
         from faster_whisper import WhisperModel
         whisper_model = WhisperModel(size, device=DEVICE, compute_type=compute_type, cpu_threads=2)
-        print(f"✅ Loaded Whisper ({size}) model on {DEVICE.upper()} successfully.")
+        print(f" Loaded Whisper ({size}) model on {DEVICE.upper()} successfully.")
     except Exception as e:
         print("Error loading Whisper:", e)
     return whisper_model
@@ -72,7 +72,7 @@ def get_demucs_model():
         from demucs.pretrained import get_model
         demucs_model = get_model("htdemucs_6s")
         demucs_model.eval()
-        print(f"✅ Loaded Meta Demucs 6-Stem (htdemucs_6s: Vocals, Guitar, Piano, Drums, Bass, Other) on {DEVICE.upper()} successfully.")
+        print(f" Loaded Meta Demucs 6-Stem (htdemucs_6s: Vocals, Guitar, Piano, Drums, Bass, Other) on {DEVICE.upper()} successfully.")
     except Exception as e:
         print("Error loading Demucs 6-stem, trying htdemucs:", e)
         try:
@@ -411,7 +411,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                     if s_max > 0:
                         stem_data = stem_data / s_max * 0.95
                     sf.write(path, stem_data.astype(np.float32), model.samplerate)
-                print(f"✅ Demucs 4-stem + PyTorch GPU Spectral Cancellation complete on {DEVICE.upper()}.")
+                print(f" Demucs 4-stem + PyTorch GPU Spectral Cancellation complete on {DEVICE.upper()}.")
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
@@ -493,7 +493,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             silent_buf = np.zeros((len(v), 2), dtype=np.float32) if len(v) > 0 else np.zeros((100, 2), dtype=np.float32)
             sf.write(drums_out, m.astype(np.float32), samplerate)
             sf.write(bass_out,  m.astype(np.float32), samplerate)
-            print("✅ Enhanced Formant HPSS DSP Separation complete.")
+            print(" Enhanced Formant HPSS DSP Separation complete.")
         except Exception as e:
             print("SciPy DSP error:", e)
             raise HTTPException(500, f"Separation failed: {e}")
