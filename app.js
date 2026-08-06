@@ -437,10 +437,17 @@ document.addEventListener('DOMContentLoaded', () => {
       state.stems.vocals.url = `${AI_SERVER_URL}${vocalsPath}`;
       state.stems.drums.url  = `${AI_SERVER_URL}${drumsPath}`;
       state.stems.bass.url   = `${AI_SERVER_URL}${bassPath}`;
-      state.stems.other.url  = `${AI_SERVER_URL}${otherPath}`;
-      state.useIsolatedStems = true;
+      // ── CRITICAL GUARANTEE: Update videoPlayer.src with clean remuxed media file ──
+      if (data.clean_media_url && videoPlayer) {
+        const currTime = videoPlayer.currentTime;
+        videoPlayer.src = `${AI_SERVER_URL}${data.clean_media_url}`;
+        videoPlayer.load();
+        videoPlayer.currentTime = currTime;
+        videoPlayer.muted  = false;
+        videoPlayer.volume = 1.0;
+      }
 
-      // Fetch vocals blob (most important - the clean voice)
+      // Fetch vocals blob for stem download buttons & audio objects
       showAiStatus('📥 جاري تحميل الصوت البشري النقي...');
       const vRes = await fetch(state.stems.vocals.url, { headers: DEFAULT_FETCH_HEADERS });
 

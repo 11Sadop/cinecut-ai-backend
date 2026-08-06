@@ -498,10 +498,28 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             print("SciPy DSP error:", e)
             raise HTTPException(500, f"Separation failed: {e}")
 
+    # Remux clean isolated vocals into clean video/audio file for native player playback
+    clean_media_file = os.path.join(TEMP_DIR, f"clean_{session_id}.mp4")
+    if FFMPEG_PATH and os.path.isfile(vocals_out):
+        try:
+            subprocess.run([
+                FFMPEG_PATH, "-y",
+                "-i", raw_path,
+                "-i", vocals_out,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-map", "0:v:0?",
+                "-map", "1:a:0",
+                clean_media_file
+            ], capture_output=True)
+        except Exception as e_remux:
+            print("Remux error:", e_remux)
+
     gc.collect()
     return {
         "status": "success",
         "session_id": session_id,
+        "clean_media_url": f"/api/clean-media/{session_id}",
         "vocals_url": f"/api/stem/vocals/{session_id}",
         "drums_url":  f"/api/stem/drums/{session_id}",
         "bass_url":   f"/api/stem/bass/{session_id}",
@@ -514,6 +532,17 @@ async def separate_audio(file: UploadFile = File(...)):
     raw = await file.read()
     res = await run_in_threadpool(_sync_separate_audio, raw, file.filename)
     return JSONResponse(res, headers=NO_CACHE_HEADERS)
+
+@app.get("/api/clean-media/{session_id}")
+def download_clean_media(session_id: str):
+    path = os.path.join(TEMP_DIR, f"clean_{session_id}.mp4")
+    if os.path.isfile(path):
+        return FileResponse(path, media_type="video/mp4", headers=CORS_HEADERS)
+    # Fallback to vocals wav if clean video is missing
+    v_path = os.path.join(TEMP_DIR, f"vocals_{session_id}.wav")
+    if os.path.isfile(v_path):
+        return FileResponse(v_path, media_type="audio/wav", headers=CORS_HEADERS)
+    raise HTTPException(404, "الملف النقي غير موجود")
 
 @app.get("/api/stem/{kind}/{session_id}")
 def download_stem_session(kind: str, session_id: str):
