@@ -1069,12 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       updateTimeDisplay();
       renderTimelineClips();
-      showAiStatus(`✅ تم استيراد الملف بنجاح! 🚀 جاري عزل الموسيقى وتنقية الصوت تلقائياً عبر GPU...`);
-      
-      // Auto-trigger Demucs vocal isolation on file import
-      setTimeout(() => {
-        runRealDemucsSeparation();
-      }, 400);
+      showAiStatus(`✅ تم استيراد الملف وقراءته بنجاح: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
     };
 
     videoPlayer.onloadedmetadata = initMediaMetadata;

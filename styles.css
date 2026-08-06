@@ -827,14 +827,16 @@ input:checked + .switch-slider:before { transform: translateX(16px); background-
     display: none !important;
   }
 
-  /* Workspace Column Layout */
-  .capcut-main-workspace { flex-direction: column; }
+  /* Workspace Flexible Layout - Sidebar Always Accessible */
+  .capcut-main-workspace { flex-direction: row; }
   .capcut-left-panel {
-    position: absolute; top: 0; right: 0; height: 100%; width: 290px;
-    transform: translateX(100%); box-shadow: -5px 0 20px rgba(0,0,0,0.8);
-    z-index: 500;
+    position: relative;
+    top: 0; right: 0; height: 100%; width: 300px;
+    min-width: 260px;
+    transform: none !important;
+    box-shadow: none;
+    z-index: 10;
   }
-  .capcut-left-panel.open { transform: translateX(0); }
   
   /* Video Player Sizing on Mobile */
   .capcut-center-viewport { flex: 1; }
