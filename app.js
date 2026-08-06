@@ -680,12 +680,22 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const audio = new Audio(url);
-    audio.play().catch(e => showAiStatus(`❌ تعذر التشغيل: ${e.message}`));
-    currentStemAudio = audio;
+    // MUTE original video completely so original audio with music never leaks
+    if (videoPlayer) {
+      videoPlayer.muted = true;
+      videoPlayer.volume = 0;
+    }
+
+    if (!stem.audio) {
+      stem.audio = new Audio(url);
+    }
+    stem.audio.currentTime = videoPlayer ? videoPlayer.currentTime : 0;
+    stem.audio.volume = 1.0;
+    stem.audio.play().catch(e => showAiStatus(`❌ تعذر التشغيل: ${e.message}`));
+    currentStemAudio = stem.audio;
     
     const labels = {
-      vocals: 'صوت الكلام البشري النقي',
+      vocals: 'صوت الكلام البشري النقي (100% بدون موسيقى)',
       drums:  'صوت الطبول والإيقاعات',
       bass:   'صوت الباص والقرار العميق',
       other:  'صوت الآلات - عود، قيتار، بيانو'
@@ -698,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn) btn.innerHTML = '<i class="fa-solid fa-pause"></i> إيقاف';
     if (btnStop) btnStop.style.display = 'inline-flex';
 
-    audio.onended = () => {
+    stem.audio.onended = () => {
       currentStemAudio = null;
       if (btn) btn.innerHTML = '<i class="fa-solid fa-play"></i> تشغيل';
       if (btnStop) btnStop.style.display = 'none';
