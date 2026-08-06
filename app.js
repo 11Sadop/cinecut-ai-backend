@@ -1218,6 +1218,11 @@ document.addEventListener('DOMContentLoaded', () => {
       showAiStatus(`تم إضافة النص بـ خط (${state.activeFontFamily}) على الفيديو! ✨`);
     });
 
+    // Quick AI Toolbar listeners (prominent direct buttons above player)
+    document.getElementById('btn-quick-separate')?.addEventListener('click', runRealDemucsSeparation);
+    document.getElementById('btn-quick-stt')?.addEventListener('click', runRealWhisperSTT);
+    document.getElementById('btn-quick-play')?.addEventListener('click', togglePlay);
+
     // File upload handlers (both top header button & sidebar dropzone)
     const onFileInputChange = (e) => {
       if (e.target.files && e.target.files[0]) {
