@@ -64,17 +64,23 @@ def get_demucs_model():
     if demucs_model is not None:
         return demucs_model
     
-    # Load htdemucs_ft on local PC, HF, and Colab (GPU)
+    # Load 6-Stem Neural Model (htdemucs_6s) with Dedicated Guitar & Piano isolation
     if IS_CLOUD and not IS_HF and DEVICE == "cpu":
         return None
         
     try:
         from demucs.pretrained import get_model
-        demucs_model = get_model("htdemucs")
+        demucs_model = get_model("htdemucs_6s")
         demucs_model.eval()
-        print("✅ Loaded Demucs (htdemucs) model successfully.")
+        print(f"✅ Loaded Meta Demucs 6-Stem (htdemucs_6s: Vocals, Guitar, Piano, Drums, Bass, Other) on {DEVICE.upper()} successfully.")
     except Exception as e:
-        print("Error loading Demucs:", e)
+        print("Error loading Demucs 6-stem, trying htdemucs:", e)
+        try:
+            from demucs.pretrained import get_model
+            demucs_model = get_model("htdemucs")
+            demucs_model.eval()
+        except Exception:
+            pass
     return demucs_model
 
 TEMP_DIR = tempfile.gettempdir()
@@ -260,8 +266,7 @@ def _sync_transcribe(raw_bytes: bytes, filename: str):
                     beam_size=5,
                     temperature=0.0,
                     language="ar",
-                    vad_filter=True,
-                    initial_prompt="كلمات أغنية عربية رومانسية ومحي مشتاق ليك ولقاك وعم بناديك والليل بطوله"
+                    vad_filter=True
                 )
                 for s in segments:
                     t_txt = clean_arabic_lyric(s.text.strip())
@@ -321,7 +326,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
     if wav_path is None or not os.path.isfile(wav_path):
         raise HTTPException(500, "تعذر تحويل الملف الصوتي")
 
-    # Local, Colab or HF Mode: Use Demucs Neural Model with Guitar & Piano Cancellation
+    # Local, Colab or HF Mode: Use Demucs 6-Stem Model with Dedicated Guitar & Piano Eraser
     if not IS_CLOUD or IS_HF or DEVICE == "cuda":
         try:
             import soundfile as sf
@@ -343,22 +348,28 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                     sources = apply_model(model, waveform, shifts=1, overlap=0.25)[0]
 
                 source_names = list(model.sources)
+                print(f"Demucs active sources: {source_names}")
                 demucs_vocals = sources[source_names.index("vocals")].cpu().numpy().T
                 demucs_drums  = sources[source_names.index("drums")].cpu().numpy().T
                 demucs_bass   = sources[source_names.index("bass")].cpu().numpy().T
-                demucs_other  = sources[source_names.index("other")].cpu().numpy().T
+                
+                # Combine remaining instrument stems (guitar, piano, other) into 'other' track
+                other_indices = [i for i, name in enumerate(source_names) if name in ["guitar", "piano", "other"]]
+                demucs_other = sum(sources[i].cpu().numpy().T for i in other_indices)
 
-                # Active Cross-Spectral Suppression for Guitars, Pianos, & Oud
+                # Active Guitar, Oud, & Piano Spectral Erasing from Vocals Track
+                guitar_piano_stems = sum(sources[source_names.index(name)].cpu().numpy().T for name in ["guitar", "piano", "other"] if name in source_names)
                 for ch in range(demucs_vocals.shape[1]):
                     v_ch = demucs_vocals[:, ch]
-                    o_ch = demucs_other[:, ch]
+                    g_ch = guitar_piano_stems[:, ch]
                     f_v, t_v, Z_v = sig.stft(v_ch, fs=model.samplerate, nperseg=1024)
-                    _, _, Z_o   = sig.stft(o_ch, fs=model.samplerate, nperseg=1024)
+                    _, _, Z_g   = sig.stft(g_ch, fs=model.samplerate, nperseg=1024)
                     
                     mag_v = np.abs(Z_v)
-                    mag_o = np.abs(Z_o)
+                    mag_g = np.abs(Z_g)
                     
-                    clean_mag_v = np.maximum(0, mag_v - 0.65 * mag_o)
+                    # Subtract guitar & piano spectral energy from vocals (0.95 factor)
+                    clean_mag_v = np.maximum(0, mag_v - 0.95 * mag_g)
                     clean_Z_v = clean_mag_v * np.exp(1j * np.angle(Z_v))
                     _, v_clean_ch = sig.istft(clean_Z_v, fs=model.samplerate)
                     
