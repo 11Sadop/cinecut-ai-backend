@@ -352,36 +352,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    generateSmartArabicCaptionsFallback();
-  }
-
-  function generateSmartArabicCaptionsFallback() {
-    const dur = state.duration || 15.0;
-    const samplePhrases = [
-      "أهلاً بكم في هذا الفيديو المتميز",
-      "استخراج النص الذكي والكابشن المضيء",
-      "تم التفريغ بنجاح والتوقيت مضبوط"
-    ];
-
-    const captured = [];
-    const numBlocks = Math.max(2, Math.floor(dur / 4));
-    const blockDur = dur / numBlocks;
-
-    for (let i = 0; i < numBlocks; i++) {
-      const phrase = samplePhrases[i % samplePhrases.length];
-      captured.push({
-        start: Math.round(i * blockDur * 100) / 100,
-        end: Math.round((i + 1) * blockDur * 0.95 * 100) / 100,
-        text: phrase
-      });
-    }
-
-    finalizeClientStt(captured);
-  }
-
   function finalizeClientStt(captured) {
     if (!captured || captured.length === 0) {
-      generateSmartArabicCaptionsFallback();
+      hideAiModal();
+      showAiStatus('⚠️ لم يُكتشف كلام منطوق واضح في الفيديو – يرجى التاكد من وجود صوت محكي');
       return;
     }
     state.transcript = captured;
@@ -1089,16 +1063,20 @@ document.addEventListener('DOMContentLoaded', () => {
       videoPlayer.addEventListener('play', () => {
         if (state.useIsolatedStems) {
           videoPlayer.muted = true;
+          videoPlayer.volume = 0;
           Object.keys(state.stems).forEach(kind => {
             const stem = state.stems[kind];
             if (stem.blobUrl) {
               if (!stem.audio) {
                 stem.audio = new Audio(stem.blobUrl);
+                stem.audio.preload = 'auto';
               }
               stem.audio.currentTime = videoPlayer.currentTime;
               stem.audio.volume = stem.volume;
               stem.audio.playbackRate = videoPlayer.playbackRate;
-              stem.audio.play().catch(e => console.log('stem sync play error:', e));
+              if (stem.volume > 0) {
+                stem.audio.play().catch(e => console.log('stem sync play error:', e));
+              }
             }
           });
         }
