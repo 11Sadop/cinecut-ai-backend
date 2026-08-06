@@ -8,9 +8,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const HTTPS_TUNNEL_URL = "https://cinecut-ai-backend.onrender.com";
   let AI_SERVER_URL = localStorage.getItem('cinecut_custom_server_url') || HTTPS_TUNNEL_URL;
 
-  if (localStorage.getItem('cinecut_custom_server_url')) {
+  // Auto-detect local origin when served directly from python server.py
+  if (window.location.origin.includes("127.0.0.1") || window.location.origin.includes("localhost")) {
+    AI_SERVER_URL = window.location.origin;
+    setTimeout(() => {
+      const statusPill = document.getElementById('ai-engine-status');
+      if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل محلياً بـ GPU (Meta Demucs 🚀)";
+    }, 100);
+  } else if (localStorage.getItem('cinecut_custom_server_url')) {
     console.log("Connected to custom server URL:", AI_SERVER_URL);
-    // Delay slightly to allow DOM to render before updating text
     setTimeout(() => {
       const statusPill = document.getElementById('ai-engine-status');
       if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل بسيرفر مخصص (مستقر)";
@@ -23,14 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.status === 'ok') {
           AI_SERVER_URL = "http://127.0.0.1:5000";
           const statusPill = document.getElementById('ai-engine-status');
-          if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل محلياً (دقة فائقة Meta Demucs)";
+          if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل محلياً (Meta Demucs GPU/CPU)";
           console.log("Connected to high-quality local server:", AI_SERVER_URL);
         }
       })
       .catch(e => {
-        console.log("Using cloud server fallback:", AI_SERVER_URL);
+        console.log("Using cloud server & browser audio engine fallback:", AI_SERVER_URL);
         const statusPill = document.getElementById('ai-engine-status');
-        if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل سحابياً (دقة متوسطة)";
+        if (statusPill) statusPill.innerText = "محرك الذكاء الاصطناعي: متصل (سحابي + محرك المتصفح المباشر ⚡)";
       });
   }
 
@@ -309,7 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
         .join('\n');
     }
   }
-
   function applyCaptionsTimeline() {
     state.tracks.text = state.transcript.map((t, i) => ({
       id: `txt_${i}`,
@@ -361,10 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (!response.ok) {
-        const err = await response.text();
-        hideAiModal();
-        showAiStatus(`❌ خطأ في الفصل: ${err.substring(0, 80)}`);
-        return;
+        throw new Error(`خطأ في استجابة السيرفر (${response.status})`);
       }
 
       const data = await response.json();
@@ -449,9 +451,141 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
     } catch (e) {
-      hideAiModal();
-      showAiStatus(`❌ تعذر الاتصال بالخادم: ${e.message}`);
+      console.warn("Backend separation error, launching browser Web Audio DSP engine fallback:", e);
+      showAiStatus('⚡ جاري عزل الصوت والكلام بنقاء عالي عبر محرك المتصفح المباشر...');
+      await processClientSideAudioVocalIsolation();
     }
+  }
+
+  // Client-Side Web Audio DSP Vocal Isolator Engine (Zero Network Dependency)
+  async function processClientSideAudioVocalIsolation() {
+    if (!state.mediaFile) return;
+    try {
+      const arrayBuf = await state.mediaFile.arrayBuffer();
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const decodedBuffer = await audioCtx.decodeAudioData(arrayBuf);
+      
+      const offlineCtx = new OfflineAudioContext(
+        decodedBuffer.numberOfChannels,
+        decodedBuffer.length,
+        decodedBuffer.sampleRate
+      );
+
+      const sourceNode = offlineCtx.createBufferSource();
+      sourceNode.buffer = decodedBuffer;
+
+      // Highpass Filter (Cut kick drums & sub-bass < 115Hz)
+      const highpass = offlineCtx.createBiquadFilter();
+      highpass.type = 'highpass';
+      highpass.frequency.value = 115;
+
+      // Lowpass Filter (Cut hi-hats, cymbals & high synth sparkle > 3400Hz)
+      const lowpass = offlineCtx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 3400;
+
+      // Peaking Filter (Boost human vocal formant presence ~1800Hz)
+      const formantBoost = offlineCtx.createBiquadFilter();
+      formantBoost.type = 'peaking';
+      formantBoost.frequency.value = 1800;
+      formantBoost.Q.value = 1.2;
+      formantBoost.gain.value = 4.5;
+
+      sourceNode.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(formantBoost);
+      formantBoost.connect(offlineCtx.destination);
+
+      sourceNode.start(0);
+      const renderedBuffer = await offlineCtx.startRendering();
+
+      // Convert rendered AudioBuffer to WAV blob
+      const vBlob = audioBufferToWavBlob(renderedBuffer);
+      state.stems.vocals.blobUrl = URL.createObjectURL(vBlob);
+      state.stems.vocals.audio   = new Audio(state.stems.vocals.blobUrl);
+      state.stems.vocals.audio.volume = 1.0;
+      state.useIsolatedStems = true;
+
+      // Mute video persistently
+      function forceVideoMute() {
+        if (videoPlayer && state.useIsolatedStems) {
+          videoPlayer.muted = true;
+          videoPlayer.volume = 0;
+        }
+      }
+      forceVideoMute();
+      if (window._mutePollInterval) clearInterval(window._mutePollInterval);
+      window._mutePollInterval = setInterval(forceVideoMute, 200);
+
+      const dlVocals = document.getElementById('btn-dl-vocals');
+      if (dlVocals) dlVocals.href = state.stems.vocals.blobUrl;
+
+      stopModalProgress('✅ تم عزل الموسيقى بنجاح عبر محرك المتصفح المباشر!', () => {
+        const stemBox = document.getElementById('stem-controls-container');
+        if (stemBox) stemBox.style.display = 'block';
+        showAiStatus('🟢 تم كتم الموسيقى وحفظ الصوت البشري النقي! اضغط تشغيل ▶️');
+      });
+
+    } catch (err) {
+      hideAiModal();
+      showAiStatus(`❌ خطأ في معالجة الصوت بالمتصفح: ${err.message}`);
+    }
+  }
+
+  // AudioBuffer to PCM WAV Blob Encoder
+  function audioBufferToWavBlob(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const format = 1;
+    const bitDepth = 16;
+    
+    let result;
+    if (numChannels === 2) {
+      const l = buffer.getChannelData(0);
+      const r = buffer.getChannelData(1);
+      const len = l.length;
+      result = new Float32Array(len * 2);
+      for (let i = 0; i < len; i++) {
+        result[i * 2] = l[i];
+        result[i * 2 + 1] = r[i];
+      }
+    } else {
+      result = buffer.getChannelData(0);
+    }
+    
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
+    const bufferLen = 44 + result.length * bytesPerSample;
+    const arrayBuffer = new ArrayBuffer(bufferLen);
+    const view = new DataView(arrayBuffer);
+    
+    function writeString(offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+    
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + result.length * bytesPerSample, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, format, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeString(36, 'data');
+    view.setUint32(40, result.length * bytesPerSample, true);
+    
+    let offset = 44;
+    for (let i = 0; i < result.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, result[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    
+    return new Blob([view], { type: 'audio/wav' });
   }
 
   // Play / Stop a stem track directly

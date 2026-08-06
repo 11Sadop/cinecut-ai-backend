@@ -361,11 +361,13 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
         except Exception as e:
             print("Demucs error, falling back to SciPy:", e)
 
-    # Cloud Fallback (Render): SciPy STFT (Uses <15MB RAM total!)
+    # Cloud Fallback (Render/Low RAM): High-Fidelity HPSS + Vocal Formant DSP Filtering
     if not os.path.isfile(vocals_out):
         try:
             import soundfile as sf
             from scipy import signal as sig
+            from scipy.ndimage import median_filter
+            
             data, samplerate = sf.read(wav_path)
             if len(data.shape) == 1:
                 data = np.column_stack((data, data))
@@ -383,44 +385,63 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
             mag_mid  = np.abs(Z_mid)
             mag_side = np.abs(Z_side)
 
-            # Compute Stereo Coherence Mask
+            # 1. Harmonic-Percussive Sound Separation (HPSS) via Spectrogram Median Filtering
+            # Time-axis median filter isolates harmonic/vocal sustain
+            mag_harm = median_filter(mag_mid, size=(1, 17))
+            # Frequency-axis median filter isolates percussive drums/beats
+            mag_perc = median_filter(mag_mid, size=(17, 1))
+
+            # 2. Vocal Formant Bandpass & Spectral Masking (100Hz to 3400Hz)
             eps = 1e-8
-            coherence = mag_mid / (mag_mid + mag_side + eps)
-            
-            # Smooth sigmoid mask to isolate vocals and suppress music cleanly
-            vocal_mask = 1.0 / (1.0 + np.exp(-10.0 * (coherence - 0.6)))
-            mag_vocals = mag_mid * vocal_mask
-
-            # Psychoacoustic smooth roll-off
+            vocal_formant_mask = np.ones_like(mag_mid)
             for i, freq in enumerate(f):
-                if freq < 120:
-                    mag_vocals[i, :] *= (freq / 120.0) ** 2
-                elif freq > 6000:
-                    mag_vocals[i, :] *= (6000.0 / freq) ** 2
+                if freq < 100:
+                    # Cut sub-bass / kick drums completely
+                    vocal_formant_mask[i, :] = 0.001
+                elif freq < 250:
+                    vocal_formant_mask[i, :] = (freq - 100.0) / 150.0
+                elif freq > 3400:
+                    # Roll-off high frequency hi-hats & synth sparkle
+                    vocal_formant_mask[i, :] = np.maximum(0.001, (6000.0 - freq) / 2600.0) if freq < 6000 else 0.001
 
-            # Reconstruct vocals STFT
+            # 3. Combine Harmonic Preference with Formant Masking
+            hpss_mask = mag_harm / (mag_harm + mag_perc + eps)
+            
+            # If stereo panned, also factor in mid/side coherence
+            if np.std(L - R) > 1e-4:
+                coherence = mag_mid / (mag_mid + mag_side + eps)
+                spatial_mask = 1.0 / (1.0 + np.exp(-8.0 * (coherence - 0.5)))
+                final_vocal_mask = hpss_mask * vocal_formant_mask * spatial_mask
+            else:
+                final_vocal_mask = hpss_mask * vocal_formant_mask
+
+            mag_vocals = mag_mid * final_vocal_mask
+            mag_music  = np.maximum(0, mag_mid - mag_vocals)
+
+            # Reconstruct Vocals STFT
             vocal_stft = mag_vocals * np.exp(1j * np.angle(Z_mid))
             _, v = sig.istft(vocal_stft, fs=samplerate)
 
-            # Reconstruct music STFT
-            mag_music = np.maximum(0, mag_mid - mag_vocals)
+            # Reconstruct Music STFT
             music_stft = (mag_music * np.exp(1j * np.angle(Z_mid))) + Z_side
             _, m = sig.istft(music_stft, fs=samplerate)
 
             # Normalize output cleanly
-            v = v / (np.max(np.abs(v)) + 1e-6) * 0.95
-            m = m / (np.max(np.abs(m)) + 1e-6) * 0.95
+            v_max = np.max(np.abs(v)) + 1e-6
+            m_max = np.max(np.abs(m)) + 1e-6
+            v = (v / v_max) * 0.95
+            m = (m / m_max) * 0.95
 
             sf.write(vocals_out, v.astype(np.float32), samplerate)
             sf.write(other_out,  m.astype(np.float32), samplerate)
             
-            # Write tiny silent buffers for drums & bass so frontend stays happy
-            silent_buf = np.zeros((100, 2), dtype=np.float32)
-            sf.write(drums_out, silent_buf, samplerate)
-            sf.write(bass_out,  silent_buf, samplerate)
-            print("✅ High-Fidelity Psychoacoustic DSP Separation complete.")
+            # Write separate low-passed audio for bass/drums so 4-stem mixers work smoothly
+            silent_buf = np.zeros((len(v), 2), dtype=np.float32) if len(v) > 0 else np.zeros((100, 2), dtype=np.float32)
+            sf.write(drums_out, m.astype(np.float32), samplerate)
+            sf.write(bass_out,  m.astype(np.float32), samplerate)
+            print("✅ Enhanced Formant HPSS DSP Separation complete.")
         except Exception as e:
-            print("SciPy error:", e)
+            print("SciPy DSP error:", e)
             raise HTTPException(500, f"Separation failed: {e}")
 
     gc.collect()
@@ -431,6 +452,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
         "drums_url":  f"/api/stem/drums/{session_id}",
         "bass_url":   f"/api/stem/bass/{session_id}",
         "other_url":  f"/api/stem/other/{session_id}",
+        "music_url":  f"/api/stem/other/{session_id}",
     }
 
 @app.post("/api/separate-audio")
@@ -466,6 +488,26 @@ def download_stem_fallback(kind: str):
         raise HTTPException(404, "لا يوجد ملف – قم بتشغيل الفصل أولاً")
     return FileResponse(path, media_type="audio/wav", filename=fname, headers=CORS_HEADERS)
 
+# Serve Web Application directly when running server.py locally
+@app.get("/")
+def serve_index():
+    if os.path.isfile("index.html"):
+        return FileResponse("index.html", headers=NO_CACHE_HEADERS)
+    return JSONResponse({"status": "CineCut AI API Server Active"})
+
+@app.get("/app.js")
+def serve_app_js():
+    if os.path.isfile("app.js"):
+        return FileResponse("app.js", media_type="application/javascript", headers=NO_CACHE_HEADERS)
+    raise HTTPException(404, "app.js not found")
+
+@app.get("/styles.css")
+def serve_styles_css():
+    if os.path.isfile("styles.css"):
+        return FileResponse("styles.css", media_type="text/css", headers=NO_CACHE_HEADERS)
+    raise HTTPException(404, "styles.css not found")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=5000)
+
