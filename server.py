@@ -365,40 +365,13 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str):
                 print(f"Demucs active sources: {source_names}")
                 
                 v_idx = source_names.index("vocals")
-                vocal_tensor = sources[v_idx] # [channels, samples]
+                demucs_vocals = sources[v_idx].cpu().numpy().T
                 
-                # Combine ALL instrument stems (guitars, pianos, drums, bass, synths)
                 inst_indices = [i for i, name in enumerate(source_names) if i != v_idx]
-                inst_tensor = sum(sources[i] for i in inst_indices)
+                demucs_other  = sum(sources[i] for i in inst_indices).cpu().numpy().T
 
-                # PyTorch STFT Aggressive Wiener Spectral Masking on GPU (100% Zero Music Purity)
-                n_fft = 2048
-                hop_length = 512
-                window = torch.hann_window(n_fft).to(DEVICE)
-
-                v_stft = torch.stft(vocal_tensor, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
-                m_stft = torch.stft(inst_tensor, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
-
-                v_mag = torch.abs(v_stft)
-                m_mag = torch.abs(m_stft)
-
-                eps = 1e-7
-                ratio = m_mag / (v_mag + eps)
-
-                # Hard Thresholding: Zero out any frequency bin where instrumental energy > 30% of vocal energy
-                wiener_mask = torch.where(ratio > 0.30, torch.zeros_like(ratio), torch.ones_like(ratio))
-                
-                # Formant bandpass: Attenuate < 85Hz sub-bass and > 3600Hz cymbals/high sparkle
-                freqs = torch.linspace(0, model.samplerate / 2, steps=v_mag.shape[1]).to(DEVICE)
-                band_mask = ((freqs >= 85) & (freqs <= 3600)).float().unsqueeze(0).unsqueeze(-1)
-                
-                clean_v_stft = v_stft * wiener_mask * band_mask
-                clean_v_tensor = torch.istft(clean_v_stft, n_fft=n_fft, hop_length=hop_length, window=window, length=vocal_tensor.shape[-1])
-
-                demucs_vocals = clean_v_tensor.cpu().numpy().T
                 demucs_drums  = sources[source_names.index("drums")].cpu().numpy().T if "drums" in source_names else sources[0].cpu().numpy().T
                 demucs_bass   = sources[source_names.index("bass")].cpu().numpy().T if "bass" in source_names else sources[0].cpu().numpy().T
-                demucs_other  = inst_tensor.cpu().numpy().T
 
                 # Normalize and write all 4 stems
                 for stem_data, path in [
