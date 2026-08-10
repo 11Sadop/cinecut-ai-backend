@@ -3,716 +3,607 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>CineCut AI Pro Ultimate | استوديو المونتاج والتوليد الصوتي والذكاء الاصطناعي</title>
-  <!-- Google Fonts: Cairo, Amiri, Almarai, Changa, Tajawal, Reem Kufi, Lalezar, Kufam, El Messiri, Aref Ruqaa, Outfit -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>CineCut AI Suite Pro | منصة أدوات المعالجة الذكية</title>
+
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@300;400;600;700;800;900&family=Changa:wght@400;600;700;800&family=El+Messiri:wght@400;600;700&family=Kufam:ital,wght@0,400;0,700;1,400&family=Lalezar&family=Outfit:wght@400;600;700;800&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;700;900&family=El+Messiri:wght@400;700&family=Reem+Kufi:wght@400;700&family=Tajawal:wght@400;700;900&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- CapCut Style CSS -->
-  <link rel="stylesheet" href="styles.css?v=20260806_v1000">
-</head>
-<body class="capcut-dark-theme">
+  <!-- Style CSS -->
+  <link rel="stylesheet" href="styles.css?v=20260807_SUITE_V45">
 
-  <div id="app" class="capcut-container">
-    
-    <!-- TOP GPU SERVER BANNER -->
-    <div id="gpu-local-banner" style="background: linear-gradient(90deg, rgba(0, 240, 255, 0.2), rgba(112, 0, 255, 0.2)); border-bottom: 1px solid rgba(0,240,255,0.3); color: #00f0ff; padding: 6px 16px; font-size: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-      <span>⚡ <strong>لتشغيل عزل الموسيقى الفائق في 6 ثوانٍ على كرت الشاشة RTX 4060:</strong> افتح الموقع عبر الرابط المحلّي المباشر: <strong>http://127.0.0.1:5000</strong></span>
-      <a href="http://127.0.0.1:5000" style="background: #00f0ff; color: #000; font-weight: bold; padding: 3px 12px; border-radius: 4px; text-decoration: none; font-size: 11px;">انتقال للرابط المحلّي المباشر 🚀</a>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: #080910;
+      color: #fff;
+      font-family: 'Cairo', sans-serif;
+      direction: rtl;
+      overflow-x: hidden;
+    }
+    select option {
+      background-color: #0f111a !important;
+      color: #ffffff !important;
+      padding: 10px !important;
+      font-size: 0.95rem !important;
+    }
+    @keyframes creditsScrollUp {
+      0% { transform: translateY(120%); opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { transform: translateY(-140%); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP HEADER NAVBAR -->
+  <header class="suite-header">
+    <div class="suite-logo-box">
+      <div class="logo-icon-glow"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+      <div class="logo-text-group">
+        <span class="logo-title">CineCut <span class="text-cyan">AI Suite</span></span>
+        <span class="logo-tag">PRO ULTIMATE 🚀</span>
+      </div>
     </div>
 
-    <!-- TOP NAVBAR (Responsive CapCut Header) -->
-    <header class="capcut-header">
-      <div class="header-right-group" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-        <button class="mobile-toggle-btn" id="btn-toggle-mobile-sidebar" title="القائمة"><i class="fa-solid fa-bars"></i></button>
-        <div class="capcut-logo">
-          <div class="logo-icon-box"><i class="fa-solid fa-clapperboard"></i></div>
-          <span class="logo-title">CineCut <span class="badge-pro">ULTIMATE</span></span>
-        </div>
-        
-        <div class="ai-status-pill" style="display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.1);">
-          <span class="pulse-green"></span>
-          <span id="ai-engine-status" style="font-size: 11px;">محرك الذكاء الاصطناعي والصوتي: جاهز</span>
-          <button id="btn-custom-server" style="background: rgba(0, 240, 255, 0.15); border: 1px solid rgba(0, 240, 255, 0.3); color: #00f0ff; cursor: pointer; padding: 2px 8px; font-size: 11px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-family: 'Cairo', sans-serif;" title="تغيير رابط السيرفر">
-            <i class="fa-solid fa-gear"></i>
-            <span>تغيير</span>
-          </button>
-        </div>
+    <div class="suite-header-status">
+      <span class="pulse-green"></span>
+      <span id="ai-engine-status">سيرفر الذكاء الاصطناعي: جاهز للمعالجة 🚀</span>
+    </div>
+  </header>
 
-        <nav class="top-menu hide-mobile">
-          <span class="menu-item">مشروع جديد</span>
-          <span class="menu-item active">تعديل</span>
-          <span class="menu-item">الذكاء الاصطناعي</span>
-          <span class="menu-item">الأصوات الذكية</span>
-        </nav>
+  <!-- MAIN CONTAINER -->
+  <main class="suite-container">
+
+    <!-- HERO BANNER -->
+    <div class="suite-hero">
+      <span class="hero-badge"><i class="fa-solid fa-bolt text-gold"></i> معالجة فائقة بدقة 4K وعزل الصوت النقي 100%</span>
+      <h1 class="hero-main-title">أدوات المعالجة والتوليد بالذكاء الاصطناعي</h1>
+      <p class="hero-desc">اختر الأداة المطلوب استخدامها، ارفع ملفك، وحدد خيارات المعالجة المتعددة لمعاينة النتيجة وتحميلها</p>
+    </div>
+
+    <!-- AI TOOLS GRID (6 MAIN CARDS) -->
+    <div class="suite-tools-grid">
+
+      <!-- TOOL 1: AUDIO SEPARATION -->
+      <div class="suite-tool-card card-purple" data-tool="stem" onclick="openToolModal('stem');">
+        <div class="card-badge">الأكثر طلباً 🔥</div>
+        <div class="card-icon"><i class="fa-solid fa-sliders"></i></div>
+        <h3 class="card-title">فصل الموسيقى عن الصوت</h3>
+        <p class="card-desc">إلغاء جميع الآلات الموسيقية والإيقاعات والحصول على صوت الكلام البشري النقي 100%</p>
+        <button class="card-btn" data-tool="stem" onclick="openToolModal('stem');">افصل الموسيقى الآن <i class="fa-solid fa-arrow-left"></i></button>
       </div>
 
-      <div class="header-center-group hide-mobile">
-        <div class="project-title-box">
-          <i class="fa-solid fa-pen-to-square"></i>
-          <span contenteditable="true" id="project-name-input">مشروع مونتاج الاحترافي</span>
-        </div>
-
-        <div class="aspect-selector-box">
-          <i class="fa-solid fa-crop-simple"></i>
-          <select id="aspect-ratio-select">
-            <option value="16:9" selected>🖥️ 16:9 (YouTube)</option>
-            <option value="9:16">📱 9:16 (TikTok / Reels)</option>
-            <option value="1:1">🔲 1:1 (Instagram)</option>
-            <option value="4:5">📐 4:5 (Portrait)</option>
-          </select>
-        </div>
+      <!-- TOOL 2: VIDEO DOWNLOADER -->
+      <div class="suite-tool-card card-cyan" data-tool="download" onclick="openToolModal('download');">
+        <div class="card-badge">شائع جداً</div>
+        <div class="card-icon"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+        <h3 class="card-title">تحميل فيديو من الإنترنت</h3>
+        <p class="card-desc">تنزيل الفيديوهات من TikTok و YouTube و Instagram بأعلى جودة MP4 ومباشرة في المعالجة</p>
+        <button class="card-btn" data-tool="download" onclick="openToolModal('download');">حمل فيديو الآن <i class="fa-solid fa-arrow-left"></i></button>
       </div>
 
-      <div class="header-left-group">
-        <button class="btn btn-dark-outline hide-mobile" id="btn-sample-demo"><i class="fa-solid fa-wand-sparkles"></i> عينة تجريبية</button>
-        <button class="btn btn-capcut-cyan" id="btn-export-video"><i class="fa-solid fa-arrow-up-from-bracket"></i> تصدير (4K)</button>
+      <!-- TOOL 3: 4K UPSCALE -->
+      <div class="suite-tool-card card-gold" data-tool="upscale" onclick="openToolModal('upscale');">
+        <div class="card-badge">دقة 4K فعلية</div>
+        <div class="card-icon"><i class="fa-solid fa-bolt"></i></div>
+        <h3 class="card-title">ترقية ورفع الجودة إلى 4K</h3>
+        <p class="card-desc">رفع تفاصيل الفيديو والصوت فعلياً بدقة 3840x2160 وإعادة بناء الوضوح والسطوع السينمائي</p>
+        <button class="card-btn" data-tool="upscale" onclick="openToolModal('upscale');">ارفع الجودة 4K <i class="fa-solid fa-arrow-left"></i></button>
       </div>
-    </header>
 
-    <!-- MAIN STUDIO EDITING AREA -->
-    <main class="capcut-main-workspace">
+      <!-- TOOL 4: VOICE DENOISE -->
+      <div class="suite-tool-card card-green" data-tool="denoise" onclick="openToolModal('denoise');">
+        <div class="card-icon"><i class="fa-solid fa-filter"></i></div>
+        <h3 class="card-title">عزل الضوضاء والضجيج</h3>
+        <p class="card-desc">تنقية الصوت من الضوضاء والهواء وصوت المكيف للحصول على صوت استوديو فخم</p>
+        <button class="card-btn" data-tool="denoise" onclick="openToolModal('denoise');">عزل الضوضاء <i class="fa-solid fa-arrow-left"></i></button>
+      </div>
+
+      <!-- TOOL 5: TEXT TO SPEECH (MALE ARABIC VOICES ONLY) -->
+      <div class="suite-tool-card card-pink" data-tool="tts" onclick="openToolModal('tts');">
+        <div class="card-badge">أصوات رجال فخمة 🎙️</div>
+        <div class="card-icon"><i class="fa-solid fa-microphone"></i></div>
+        <h3 class="card-title">تحويل النص إلى صوت (أصوات رجالية)</h3>
+        <p class="card-desc">تحويل النص العربي إلى تعليق صوتي واقعي ورصين بأفضل أصوات الرجال مع عيّنات الاستماع المباشر</p>
+        <button class="card-btn" data-tool="tts" onclick="openToolModal('tts');">ولد التعليق الصوتي <i class="fa-solid fa-arrow-left"></i></button>
+      </div>
+
+      <!-- TOOL 6: SPEECH TO TEXT -->
+      <div class="suite-tool-card card-blue" data-tool="stt" onclick="openToolModal('stt');">
+        <div class="card-icon"><i class="fa-solid fa-closed-captioning"></i></div>
+        <h3 class="card-title">استخراج النص والتفريغ (Whisper AI)</h3>
+        <p class="card-desc">استخراج وتفريغ جميع الكلمات والنصوص من مقاطع الصوت والفيديو بدقة 100% مجهزة للنسخ والتحميل</p>
+        <button class="card-btn" data-tool="stt" onclick="openToolModal('stt');">استخرج النص <i class="fa-solid fa-arrow-left"></i></button>
+      </div>
+
+      <!-- TOOL 7: AI BACKGROUND REMOVAL (IMAGE + VIDEO) -->
+      <div class="suite-tool-card card-purple" data-tool="bgremove" onclick="openToolModal('bgremove');">
+        <div class="card-badge">جديد ✨</div>
+        <div class="card-icon"><i class="fa-solid fa-eraser"></i></div>
+        <h3 class="card-title">إزالة الخلفية بالذكاء الاصطناعي</h3>
+        <p class="card-desc">إزالة خلفية أي صورة أو فيديو تلقائياً واستبدالها بشفافية أو لون أو تمويه أو صورة خلفية مخصصة</p>
+        <button class="card-btn" data-tool="bgremove" onclick="openToolModal('bgremove');">أزل الخلفية الآن <i class="fa-solid fa-arrow-left"></i></button>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- SHARED FILE INPUT -->
+  <input type="file" id="media-file-input" style="display:none;" accept="audio/*,video/*">
+
+  <!-- DYNAMIC TOOL ACTION MODAL -->
+  <div id="tool-action-modal" class="suite-modal-overlay" style="display:none;">
+    <div class="suite-modal-box">
       
-      <!-- LEFT ASSETS & TOOLS PANEL -->
-      <aside class="capcut-left-panel" id="left-sidebar-panel">
-        
-        <!-- SIDEBAR TAB ICONS -->
-        <nav class="capcut-nav-tabs">
-          <button class="nav-tab-btn show-only-mobile" id="btn-close-mobile-sidebar" title="إغلاق" style="border-bottom: 1px solid var(--capcut-border); margin-bottom: 6px;">
-            <i class="fa-solid fa-xmark" style="color: #ff4d4d;"></i>
-            <span style="color: #ff4d4d;">إغلاق</span>
-          </button>
+      <div class="suite-modal-header">
+        <h3 id="modal-tool-title"><i class="fa-solid fa-wand-magic-sparkles text-cyan"></i> أداة الذكاء الاصطناعي</h3>
+        <button class="suite-modal-close" onclick="closeToolModal();">&times;</button>
+      </div>
 
-          <button class="nav-tab-btn active" data-tab="tab-media" title="الميديا والوسائط">
-            <i class="fa-solid fa-folder-open"></i>
-            <span>الميديا</span>
-          </button>
+      <div class="suite-modal-body">
 
-          <button class="nav-tab-btn" data-tab="tab-tts" title="توليد الأصوات الذكية (AI Voice)">
-            <i class="fa-solid fa-headset text-gold"></i>
-            <span>أصوات AI</span>
-          </button>
+        <!-- URL INPUT FOR DOWNLOADER TOOL -->
+        <div id="modal-url-box" class="modal-url-container" style="display:none;">
+          <input type="url" id="tool-url-input" class="suite-url-input" placeholder="ضع رابط الفيديو من يوتيوب أو تيك توك أو انستقرام هنا..." dir="ltr">
+          <button class="suite-btn-action" onclick="processUrlInput();"><i class="fa-solid fa-magnifying-glass"></i> جلب ومعاينة الفيديو</button>
+        </div>
 
-          <button class="nav-tab-btn" data-tab="tab-text-anim" title="الخطوط المتحركة">
-            <i class="fa-solid fa-font"></i>
-            <span>خطوط متحركة</span>
-          </button>
+        <!-- DROPZONE FOR FILE UPLOAD -->
+        <div id="modal-dropzone" class="modal-dropzone-box" onclick="triggerFileInput();">
+          <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+          <h4 id="dropzone-text">اضغط هنا لاختيار أو إسقاط ملف الصوت أو الفيديو</h4>
+          <p id="dropzone-sub">يدعم جميع الصيغ: MP4, MP3, WAV, MOV, MKV, M4A</p>
+          <span id="selected-file-name" class="file-name-pill" style="display:none;"></span>
+        </div>
 
-          <button class="nav-tab-btn" data-tab="tab-stt" title="استخراج النص (Whisper STT)">
-            <i class="fa-solid fa-closed-captioning"></i>
-            <span>استخراج النص</span>
-          </button>
-
-          <button class="nav-tab-btn" data-tab="tab-stem" title="فصل الصوت والموسيقى">
-            <i class="fa-solid fa-sliders"></i>
-            <span>فصل الموسيقى</span>
-          </button>
-
-          <button class="nav-tab-btn" data-tab="tab-ai-suite" title="ترقية الجودة 4K">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>ترقية الجودة</span>
-          </button>
-
-          <button class="nav-tab-btn" data-tab="tab-filters" title="الفلاتر السينمائية">
-            <i class="fa-solid fa-photo-film"></i>
-            <span>الفلاتر</span>
-          </button>
-
-          <button class="nav-tab-btn" data-tab="tab-fx" title="المؤثرات والتأثيرات">
-            <i class="fa-solid fa-sparkles"></i>
-            <span>المؤثرات</span>
-          </button>
-        </nav>
-
-        <!-- PANEL CONTENT AREA -->
-        <div class="capcut-tab-body">
-          
-          <!-- 1. MEDIA TAB -->
-          <div class="tab-content active" id="tab-media">
-            <div class="tab-header">
-              <h4>مكتبة الميديا والوسائط</h4>
-            </div>
-            <div class="capcut-upload-box" id="dropzone">
-              <i class="fa-solid fa-cloud-arrow-up upload-ico"></i>
-              <p>اسحب الفيديو أو الصوت هنا</p>
-              <span>يدعم MP4, MOV, MP3, WAV</span>
-              <input type="file" id="media-file-input" accept="video/*,audio/*" style="display:none;">
-              <button class="btn btn-capcut-sm" onclick="document.getElementById('media-file-input').click()"><i class="fa-solid fa-plus"></i> استيراد ملفات</button>
-            </div>
-            <div class="media-library-grid" id="media-items-grid">
-              <!-- Uploaded Media items injected here -->
-            </div>
+        <!-- MULTI-SELECTION CHECKBOXES FOR LOADED FILE / VIDEO -->
+        <div id="multi-operations-checkbox-wrap" class="multi-ops-container" style="display:none;">
+          <label class="multi-ops-title"><i class="fa-solid fa-list-check text-cyan"></i> حدد العمليات المطلوبة للمقطع (يمكنك اختيار أكثر من خيار معاً):</label>
+          <div class="checkbox-grid">
+            <label class="chk-item" id="chk-row-download-only" style="display:none;">
+              <input type="checkbox" id="chk-op-download-only">
+              <span>⬇️ تحميل الفيديو فقط (بدون معالجة)</span>
+            </label>
+            <label class="chk-item" id="chk-row-stem">
+              <input type="checkbox" id="chk-op-stem" checked>
+              <span>🎤 فصل الموسيقى وإلغاء الإيقاعات</span>
+            </label>
+            <label class="chk-item" style="border:2px solid var(--cyan); background:rgba(0,240,255,0.12);">
+              <input type="checkbox" id="chk-op-upscale" checked>
+              <span style="color:var(--cyan); font-weight:700;">⚡ ترقية ورفع الجودة إلى 4K وتوضيح الملامح</span>
+            </label>
+            <label class="chk-item" id="chk-row-denoise">
+              <input type="checkbox" id="chk-op-denoise">
+              <span>🔊 عزل وتصفية الضوضاء والهواء</span>
+            </label>
+            <label class="chk-item" id="chk-row-stt">
+              <input type="checkbox" id="chk-op-stt">
+              <span>📝 استخراج وتفريغ النص والكتابة</span>
+            </label>
           </div>
 
-          <!-- 2. AI TEXT-TO-SPEECH (TTS) VOICE GENERATOR (توليد الأصوات بالذكاء الاصطناعي) -->
-          <div class="tab-content" id="tab-tts">
-            <div class="tab-header">
-              <h4>توليد الأصوات بالذكاء الاصطناعي (AI Voice Generator)</h4>
-              <p>اكتب أي نص لتحويله فوراً إلى تعليق صوتي بشري واقعي بمختلف الأصوات.</p>
+          <!-- UPSCALE QUALITY SELECTOR (shown when upscale checked) -->
+          <div id="upscale-quality-panel" style="display:block; margin-top:10px; background:rgba(255,200,0,0.07); border:1px solid rgba(255,200,0,0.25); border-radius:12px; padding:14px;">
+            <label style="font-size:0.85rem; color:var(--gold); font-weight:700; display:block; margin-bottom:8px;">⚡ اختر مستوى الجودة والدقة:</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.1); border-radius:10px; border:1px solid rgba(255,200,0,0.2);">
+                <input type="radio" name="upscale-res" id="res-720" value="720" style="accent-color:var(--gold);"> 720p HD
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.1); border-radius:10px; border:1px solid rgba(255,200,0,0.2);">
+                <input type="radio" name="upscale-res" id="res-1080" value="1080" style="accent-color:var(--gold);"> 1080p Full HD
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.15); border-radius:10px; border:2px solid var(--gold);">
+                <input type="radio" name="upscale-res" id="res-4k" value="4k" checked style="accent-color:var(--gold);"> 4K Ultra HD
+              </label>
             </div>
-
-            <div class="form-group">
-              <label>النص المراد نطقة بصوت AI:</label>
-              <textarea id="tts-input-text" class="capcut-textarea" rows="3" placeholder="أدخل النص هنا... مثال: مرحباً بكم في تطبيق المونتاج الذكي CineCut AI Pro"></textarea>
+            <label style="font-size:0.85rem; color:var(--gold); font-weight:700; display:block; margin-top:10px; margin-bottom:6px;">🎞️ معدل الإطارات (FPS):</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.1); border-radius:10px; border:1px solid rgba(255,200,0,0.2);">
+                <input type="radio" name="upscale-fps" value="24" style="accent-color:var(--gold);"> 24 fps (سينمائي)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.1); border-radius:10px; border:1px solid rgba(255,200,0,0.2);">
+                <input type="radio" name="upscale-fps" value="30" style="accent-color:var(--gold);"> 30 fps (قياسي)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.1); border-radius:10px; border:1px solid rgba(255,200,0,0.2);">
+                <input type="radio" name="upscale-fps" value="60" style="accent-color:var(--gold);"> 60 fps (سلس)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.18); border-radius:10px; border:2px solid var(--gold);">
+                <input type="radio" name="upscale-fps" value="120" checked style="accent-color:var(--gold);"> ⚡ 120 fps (فائق السلاسة)
+              </label>
             </div>
-
-            <div class="form-group">
-              <label>اختر الصوت والمعلق الذكي:</label>
-              <select id="tts-voice-select" class="capcut-select">
-                <option value="ar-cinematic-male">🎙️ صوت سينمائي فخم (Arabic Deep Male)</option>
-                <option value="ar-elegant-female" selected>🎙️ صوت أنثوي ناعم (Arabic Soft Female)</option>
-                <option value="ar-news-anchor">🎙️ معلق إخباري احترافي (Arabic News Anchor)</option>
-                <option value="ar-energetic-radio">🎙️ صوت راديو حماسي (Arabic Energetic)</option>
-                <option value="en-natural-voice">🇬🇧 English Natural Voiceover (US/UK)</option>
-              </select>
+            <label style="font-size:0.85rem; color:var(--gold); font-weight:700; display:block; margin-top:10px; margin-bottom:6px;">✨ نمط توضيح الملامح والشعر والألوان:</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.18); border-radius:10px; border:2px solid var(--gold);">
+                <input type="radio" name="upscale-color" value="face" checked style="accent-color:var(--gold);"> 👤 توضيح فائق لملامح الوجه والشعر (Facial & Hair HDR)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.1); border-radius:10px; border:1px solid rgba(255,200,0,0.2);">
+                <input type="radio" name="upscale-color" value="pure" style="accent-color:var(--gold);"> 🌿 ألوان الفيديو الأصلية النقية
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(255,200,0,0.1); border-radius:10px; border:1px solid rgba(255,200,0,0.2);">
+                <input type="radio" name="upscale-color" value="vivid" style="accent-color:var(--gold);"> 🎨 ألوان حية مشبعة (Vivid)
+              </label>
             </div>
-
-            <div class="form-group">
-              <div class="slider-row">
-                <span class="lbl">السرعة:</span>
-                <input type="range" class="capcut-slider" id="tts-rate-slider" min="0.5" max="1.5" step="0.1" value="1.0">
-                <span class="val-txt" id="tts-rate-val">1.0x</span>
-              </div>
-              <div class="slider-row">
-                <span class="lbl">الطبقة:</span>
-                <input type="range" class="capcut-slider" id="tts-pitch-slider" min="0.5" max="1.5" step="0.1" value="1.0">
-                <span class="val-txt" id="tts-pitch-val">1.0</span>
-              </div>
+            <label style="font-size:0.85rem; color:var(--gold); font-weight:700; display:block; margin-top:12px; margin-bottom:6px;">⚡ وضع دقة الـ AI والخوارزمية:</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 16px; background:rgba(0,240,255,0.18); border-radius:10px; border:2px solid var(--cyan); flex:1;">
+                <input type="radio" name="upscale-speed" value="fast" checked style="accent-color:var(--cyan);"> ⚡ 4K Ultra-HD GPU (فائق السرعة - 3 ثوانٍ)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 16px; background:rgba(255,200,0,0.08); border-radius:10px; border:1px solid rgba(255,200,0,0.2); flex:1;">
+                <input type="radio" name="upscale-speed" value="ai" style="accent-color:var(--gold);"> 🤖 GPU AI Engine (معالجة جودة فائقة)
+              </label>
             </div>
-
-            <div class="tts-action-buttons">
-              <button class="btn btn-dark-outline btn-full" id="btn-preview-tts-audio">
-                <i class="fa-solid fa-volume-high"></i> الاستماع للمعاينة
-              </button>
-              <button class="btn btn-capcut-cyan btn-full margin-top-sm" id="btn-generate-tts-timeline">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> توليد وإضافة الصوت للشريط الزمني
-              </button>
-            </div>
+            <p style="font-size:0.78rem; color:#aaa; margin-top:8px; margin-bottom:0;"><i class="fa-solid fa-wand-magic-sparkles text-gold"></i> محرك ذكاء اصطناعي مخصص لإعادة إظهار ملامح الوجه والدقن وخصلات الشعر وتفاصيل العينين بدقة 4K فائقة الوضوح</p>
           </div>
+        </div>
 
-          <!-- 3. TYPOGRAPHY & FONT DESIGN STUDIO (كتابة وتصميم النصوص والخطوط) -->
-          <div class="tab-content" id="tab-text-anim">
-            <div class="tab-header">
-              <h4>كتابة وتصميم النصوص (Typography & Font Studio)</h4>
-              <p>إضافة عناوين وكابشن واختيار أنواع الخطوط العربية والحركات الاحترافية.</p>
-            </div>
-
-            <div class="form-group">
-              <label>النص المراد كتابته وإضافته:</label>
-              <textarea id="custom-text-input" class="capcut-textarea" rows="2" placeholder="أدخل النص هنا... مثال: شفت خلي يقول"></textarea>
-            </div>
-
-            <div class="form-group">
-              <label>اختر نوع الخط (Font Family):</label>
-              <select id="text-font-family" class="capcut-select" style="font-size:1.05rem;">
-                <option value="Cairo" style="font-family:'Cairo';" selected>✨ القاهرة - Cairo (مودرن أنيق)</option>
-                <option value="Amiri" style="font-family:'Amiri';">📜 الأميري - Amiri (كلاسيكي سينمائي)</option>
-                <option value="Almarai" style="font-family:'Almarai';">📱 المراعي - Almarai (حديث وواضح)</option>
-                <option value="Changa" style="font-family:'Changa';">💥 تشانجا - Changa (عريض بارز)</option>
-                <option value="Tajawal" style="font-family:'Tajawal';">💎 تجول - Tajawal (ناعم فاخر)</option>
-                <option value="Lalezar" style="font-family:'Lalezar';">👑 لاليزار - Lalezar (عناوين عريضة)</option>
-                <option value="Reem Kufi" style="font-family:'Reem Kufi';">✒️ ريم كوفي - Reem Kufi (عريق)</option>
-                <option value="Aref Ruqaa" style="font-family:'Aref Ruqaa';">✍️ رقعة - Aref Ruqaa (خط رقعة أصيل)</option>
-                <option value="El Messiri" style="font-family:'El Messiri';">🎨 المسيري - El Messiri (فني مميز)</option>
-                <option value="Kufam" style="font-family:'Kufam';">📐 كوفام - Kufam (كوفي حديث)</option>
-                <option value="Outfit" style="font-family:'Outfit';">🇬🇧 Outfit (English Modern Sans)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <div class="slider-row">
-                <span class="lbl">حجم الخط:</span>
-                <input type="range" class="capcut-slider" id="text-size-slider" min="18" max="72" value="36">
-                <span class="val-txt" id="text-size-val">36px</span>
-              </div>
-            </div>
-
-            <div class="form-group" style="display:flex; gap:10px; align-items:center;">
-              <div style="flex:1;">
-                <label>لون الخط:</label>
-                <input type="color" id="text-color-picker" class="capcut-color-picker" value="#ffffff" style="width:100%;height:38px;border-radius:6px;border:1px solid #333;cursor:pointer;background:#111;">
-              </div>
-              <div style="flex:1;">
-                <label>خلفية النص:</label>
-                <input type="color" id="text-bg-picker" class="capcut-color-picker" value="#000000" style="width:100%;height:38px;border-radius:6px;border:1px solid #333;cursor:pointer;background:#111;">
-              </div>
-            </div>
-
-            <h5 class="sub-label">اختر نوع حركة النص (Animation):</h5>
-            <div class="text-anim-grid" id="text-anim-selector">
-              <div class="anim-card active" data-anim="pop-word">
-                <div class="anim-demo pop-effect">POP!</div>
-                <span>قفز الكلمات (Pop)</span>
-              </div>
-              <div class="anim-card" data-anim="karaoke-glow">
-                <div class="anim-demo karaoke-effect">GLOW</div>
-                <span>إيقاع النيون (Glow)</span>
-              </div>
-              <div class="anim-card" data-anim="slide-up">
-                <div class="anim-demo slide-effect">SLIDE</div>
-                <span>صعود احترافي (Slide)</span>
-              </div>
-              <div class="anim-card" data-anim="typewriter-fade">
-                <div class="anim-demo type-effect">TYPE</div>
-                <span>آلة كاتبة (Typewriter)</span>
-              </div>
-              <div class="anim-card" data-anim="bounce-letter">
-                <div class="anim-demo bounce-effect">BOUNCE</div>
-                <span>ارتداد الأحرف (Bounce)</span>
-              </div>
-              <div class="anim-card" data-anim="glitch-shift">
-                <div class="anim-demo glitch-effect">GLITCH</div>
-                <span>تشويش سايبر (Glitch Shift)</span>
-              </div>
-            </div>
-
-            <button class="btn btn-capcut-cyan btn-full" id="btn-add-animated-text">
-              <i class="fa-solid fa-plus"></i> إضافة النص المتحرك للشريط الزمني
+        <!-- LIVE MEDIA PREVIEW PLAYER -->
+        <div id="modal-preview-player-wrap" class="preview-player-container" style="display:none;">
+          <div class="preview-header-bar" style="display:flex; justify-content:space-between; align-items:center;">
+            <span><i class="fa-solid fa-eye text-cyan"></i> معاينة المقطع الحالي:</span>
+            <button type="button" onclick="const v=document.getElementById('tool-video-preview'); if(v.requestFullscreen){v.requestFullscreen();}else if(v.webkitRequestFullscreen){v.webkitRequestFullscreen();}" style="background:rgba(0,220,255,0.15); border:1px solid var(--cyan); color:var(--cyan); padding:4px 10px; border-radius:8px; font-size:0.78rem; cursor:pointer;">
+              <i class="fa-solid fa-expand"></i> 🔍 معاينة بالدقة الكاملة 4K Fullscreen
             </button>
           </div>
+          <video id="tool-video-preview" controls style="width:100%; max-height:240px; border-radius:12px; background:#000; display:none;"></video>
+          <audio id="tool-audio-preview" controls style="width:100%; margin-top:8px; display:none;"></audio>
+          <img id="tool-image-preview" style="width:100%; max-height:240px; border-radius:12px; background:#000; display:none; object-fit:contain;">
+        </div>
 
-          <!-- 4. WHISPER SPEECH TO TEXT TAB -->
-          <div class="tab-content" id="tab-stt">
-            <div class="tab-header">
-              <h4>استخراج النص المطابق 100% (Whisper AI)</h4>
-              <p>يستخرج النص بدقة متناهية دون حذف أي كلمة مع التوقيت المظبوط.</p>
-            </div>
-
-            <div class="capcut-card-box">
-              <div class="form-group">
-                <label>لغة الفيديو:</label>
-                <select id="stt-language" class="capcut-select">
-                  <option value="ar" selected>العربية (جميع اللهجات - المطابقة التامة)</option>
-                  <option value="en">الإنجليزية (English Verbatim)</option>
-                  <option value="auto">تلقائي (Auto Detect)</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label>نمط الكابشن المتحرك:</label>
-                <select id="stt-caption-style" class="capcut-select">
-                  <option value="pop-word" selected>✨ قفز الكلمات الملونة (CapCut Kinetic Pop)</option>
-                  <option value="karaoke-glow">🎤 كاريوكي نيون (Karaoke Neon Glow)</option>
-                  <option value="typewriter-fade">⌨️ آلة كاتبة سينمائية (Cinematic Typewriter)</option>
-                </select>
-              </div>
-
-              <button class="btn btn-capcut-cyan btn-full" id="btn-run-stt">
-                <i class="fa-solid fa-microchip"></i> استخراج النص والكابشن الآن
+        <!-- TEXT INPUT FOR TTS TOOL -->
+        <div id="modal-tts-box" class="modal-tts-container" style="display:none;">
+          <textarea id="tool-tts-text" class="suite-textarea" placeholder="أدخل النص العربي المراد تحويله إلى تعليق صوتي رجالي فخم..."></textarea>
+          <div class="tts-voice-select-row">
+            <label><i class="fa-solid fa-user-tie text-gold"></i> اختر صوت التعليق وركب العيّنة:</label>
+            
+            <div class="voice-picker-line">
+              <select id="tool-tts-voice" class="suite-select" onchange="onVoiceSelectionChanged();">
+                <option value="ar-SA-HamedNeural" selected>🇸🇦 حامد (سعودي فخم ورسمي)</option>
+                <option value="ar-AE-HamdanNeural">🇦🇪 حمدان (إماراتي وثائقي عالي النقاء)</option>
+                <option value="ar-EG-ShakirNeural">🇪🇬 شاكر (مصري تعليق صوتي قوي)</option>
+                <option value="ar-OM-JamalNeural">🇴🇲 جمال (عُماني رزين احترافي)</option>
+                <option value="ar-QA-AliNeural">🇶🇦 علي (قطري إخباري سينمائي)</option>
+                <option value="ar-YE-AnwarNeural">🇾🇪 أنور (يمني فصيح رصين)</option>
+                <option value="ar-DZ-IsmaelNeural">🇩🇿 إسماعيل (جزائري فصيح احترافي)</option>
+                <option value="en-US-RyanNeural">🇺🇸 Ryan (إنجليزي تعليق وثائقي)</option>
+              </select>
+              <button class="btn-sample-listen" onclick="listenToVoiceSample();">
+                <i class="fa-solid fa-volume-high"></i> استماع للعينة
               </button>
             </div>
-
-            <div class="stt-output-box" id="stt-results-container" style="display:none;">
-              <div class="stt-actions">
-                <span>النص المستخرج:</span>
-                <div>
-                  <button class="btn-icon-sm" id="btn-copy-stt" title="نسخ النص"><i class="fa-solid fa-copy"></i></button>
-                  <button class="btn-icon-sm" id="btn-export-srt" title="تصدير SRT"><i class="fa-solid fa-file-arrow-down"></i> SRT</button>
-                </div>
-              </div>
-              <div class="transcript-editor" id="stt-transcript-box" contenteditable="true"></div>
-              <button class="btn btn-capcut-green btn-full margin-top-sm" id="btn-apply-captions-timeline">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> وضع الكابشن المتحرك على الفيديو
-              </button>
-            </div>
+            <audio id="voice-sample-player" controls style="width:100%; margin-top:8px; display:none; border:1px solid var(--gold); border-radius:10px;"></audio>
           </div>
+        </div>
 
-          <!-- 5. AUDIO & DEMUCS STEM TAB -->
-          <div class="tab-content" id="tab-stem">
-            <div class="tab-header">
-              <h4>فصل وتصفية الصوت (Meta Demucs)</h4>
-              <p>عزل الصوت البشري عن الموسيقى والآلات وتصفية الضوضاء.</p>
+        <!-- LANGUAGE SELECTOR FOR SPEECH-TO-TEXT TOOL -->
+        <div id="modal-stt-lang-box" style="display:none; margin-top:10px; background:rgba(0,240,255,0.06); border:1px solid rgba(0,240,255,0.25); border-radius:12px; padding:12px;">
+          <label style="font-size:0.85rem; color:var(--cyan); font-weight:700; display:block; margin-bottom:8px;"><i class="fa-solid fa-language"></i> لغة الصوت (لتحسين دقة التفريغ والتصحيح الإملائي):</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(0,240,255,0.18); border-radius:10px; border:2px solid var(--cyan);">
+              <input type="radio" name="stt-lang" value="ar" id="stt-lang-ar" checked style="accent-color:var(--cyan);"> 🇸🇦 عربي (كل اللهجات)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(0,240,255,0.1); border-radius:10px; border:1px solid rgba(0,240,255,0.3);">
+              <input type="radio" name="stt-lang" value="en" id="stt-lang-en" style="accent-color:var(--cyan);"> 🇺🇸 إنجليزي
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 14px; background:rgba(0,240,255,0.1); border-radius:10px; border:1px solid rgba(0,240,255,0.3);">
+              <input type="radio" name="stt-lang" value="auto" id="stt-lang-auto" style="accent-color:var(--cyan);"> 🌐 اكتشاف تلقائي
+            </label>
+          </div>
+        </div>
+
+        <!-- PROGRESS BAR & TIMER -->
+        <div id="modal-progress-container" class="suite-progress-wrap" style="display:none;">
+          <div class="suite-progress-bar">
+            <div id="modal-progress-fill" class="suite-progress-fill" style="width: 0%;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+            <span id="modal-progress-txt" class="suite-progress-label">جاري المعالجة...</span>
+            <span id="modal-timer-txt" style="font-size:0.8rem; color:var(--gold); font-weight:700;">⏱️ 00:00</span>
+          </div>
+        </div>
+
+        <!-- RESULTS / APPROVAL / DOWNLOAD AREA -->
+        <div id="modal-result-box" class="suite-result-container" style="display:none;">
+          <h4 id="result-status-title"><i class="fa-solid fa-circle-check text-green"></i> تم إنجاز المعالجة بنجاح!</h4>
+          <p id="result-status-subtitle" style="font-size:0.85rem; color:#aaa; margin-top:2px;">استمع وشاهد النتيجة المعزولة بالأسفل، واضغط اعتماد ودمج وتصدير المقطع</p>
+          
+          <!-- AUDIO STEM PLAYERS -->
+          <div id="stem-players-wrap" class="stem-players-grid" style="display:none;">
+            <!-- CLEAN RESULTS: ONLY PURE VOCALS & CLEAN REMUXED VIDEO -->
+            <div class="stem-player-card">
+              <h5>🎤 الصوت البشري المعزول (بدون موسيقى)</h5>
+              <audio id="vocals-audio-player" controls style="width:100%; margin-top:8px;"></audio>
+              <div class="download-action-row">
+                <button class="suite-btn-download" onclick="downloadStemDirectly('vocals');">
+                  <i class="fa-solid fa-download"></i> ⬇️ تحميل الصوت المعزول كملف مباشر (WAV)
+                </button>
+              </div>
             </div>
 
-            <div class="capcut-card-box">
-              <button class="btn btn-capcut-cyan btn-full" id="btn-run-stem-separation">
-                <i class="fa-solid fa-diagram-project"></i> البدء بفصل الصوت عن الموسيقى
-              </button>
-            </div>
+            <!-- PROMINENT BUTTON: MERGE CLEAN VOCAL AUDIO WITH VIDEO & EXPORT -->
+            <div class="stem-player-card" id="clean-video-result-card" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(0, 240, 255, 0.12), rgba(0, 112, 255, 0.12)); border: 2px solid var(--cyan); border-radius: 16px; padding: 16px; margin-top: 10px;">
+              <h5 style="color: var(--cyan); font-size: 1.1rem; font-weight: 700;"><i class="fa-solid fa-film text-cyan"></i> 🎬 المقطع النهائي الناتج بعد المعالجة وتعديل الألوان وترقية الجودة:</h5>
+              <div id="video-spec-badge-box" style="margin-top:8px; margin-bottom:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                <span class="suite-badge" style="background:rgba(0,240,255,0.15); color:var(--cyan); border:1px solid var(--cyan); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-award"></i> الدقة: 3840×2160 (4K UHD)</span>
+                <span class="suite-badge" style="background:rgba(255,200,0,0.15); color:var(--gold); border:1px solid var(--gold); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-bolt"></i> السرعة: 120 FPS</span>
+                <span class="suite-badge" style="background:rgba(0,255,150,0.15); color:var(--green); border:1px solid var(--green); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-wand-magic-sparkles"></i> NVENC CUDA 4K Hardware Engine</span>
+              </div>
+              
+              <!-- LIVE SUBTITLE OVERLAY WRAPPER -->
+              <div class="video-caption-overlay-container" style="position:relative; width:100%; max-height:360px; overflow:hidden; border-radius:14px; background:#000; border:2px solid var(--cyan); margin-top:10px;">
+                <video id="clean-result-video-player" controls style="width: 100%; max-height: 360px; display:block; background: #000;"></video>
 
-            <div class="stem-channels-box" id="stem-controls-container" style="display:none;">
-              <div class="stem-item">
-                <div class="stem-label"><i class="fa-solid fa-microphone text-cyan"></i> 🎤 الصوت البشري النقي (Vocals Only)</div>
-                <input type="range" class="capcut-slider" id="stem-vol-vocals" min="0" max="400" value="100">
-                <div style="display:flex;gap:6px;margin-top:6px;">
-                  <button class="btn btn-cyan btn-sm" id="btn-play-vocals"><i class="fa-solid fa-play"></i> تشغيل</button>
-                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-vocals" href="#" download="vocals_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+                <!-- LIVE SUBTITLE OVERLAY LAYER -->
+                <div id="video-live-subtitle-overlay" class="live-subtitle-overlay" style="position:absolute; inset:0; pointer-events:none; display:none; justify-content:center; align-items:flex-end; padding:20px; z-index:10; overflow:hidden;">
+                  <div id="live-subtitle-text-content" style="font-size:26px; color:#fff; text-shadow:0 2px 12px rgba(0,0,0,0.9); font-weight:700; text-align:center; direction:rtl; transition:all 0.2s;">
+                    خطاي في توضيح وشي غلاتك.. خطاك في توضيح وشي وتغليك
+                  </div>
                 </div>
               </div>
 
-              <div class="stem-item" style="margin-top:12px;">
-                <div class="stem-label"><i class="fa-solid fa-drum text-gold"></i> 🥁 الطبول والإيقاع (Drums Only)</div>
-                <input type="range" class="capcut-slider" id="stem-vol-drums" min="0" max="400" value="0">
-                <div style="display:flex;gap:6px;margin-top:6px;">
-                  <button class="btn btn-gold btn-sm" id="btn-play-drums"><i class="fa-solid fa-play"></i> تشغيل</button>
-                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-drums" href="#" download="drums_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
+              <!-- KINETIC SUBTITLE & CREDITS CONTROL PANEL -->
+              <div id="caption-styling-options-box" style="display:none; margin-top:14px; background:rgba(0, 240, 255, 0.05); border:1px solid rgba(0, 240, 255, 0.3); border-radius:14px; padding:14px; text-align:right;">
+                <h5 style="color:var(--gold); font-weight:800; font-size:1.05rem; margin-bottom:10px;"><i class="fa-solid fa-closed-captioning"></i> 🎬 اختر نمط إدماج وتصميم الكلمات وتتر النهاية على الفيديو:</h5>
+                
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-bottom:12px;">
+                  
+                  <label class="caption-style-card active" onclick="setCaptionMode('credits')" style="padding:10px; background:rgba(255,200,0,0.1); border:2px solid var(--gold); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="credits" checked style="accent-color:var(--gold);">
+                    <div style="font-weight:700; color:var(--gold); font-size:0.9rem;"><i class="fa-solid fa-film"></i> شارة ختام الأفلام والمسلسلات</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">صعود الكلام لأعلى كأفلام السينما والمسلسلات</div>
+                  </label>
+
+                  <label class="caption-style-card" onclick="setCaptionMode('karaoke')" style="padding:10px; background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.3); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="karaoke" style="accent-color:var(--cyan);">
+                    <div style="font-weight:700; color:var(--cyan); font-size:0.9rem;"><i class="fa-solid fa-wand-magic-sparkles"></i> كاريوكي بالكلمة</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">توهج ملون متحرك يتبع نطق الكلمات</div>
+                  </label>
+
+                  <label class="caption-style-card" onclick="setCaptionMode('cinematic')" style="padding:10px; background:rgba(0,255,150,0.1); border:1px solid rgba(0,255,150,0.3); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="cinematic" style="accent-color:var(--green);">
+                    <div style="font-weight:700; color:var(--green); font-size:0.9rem;"><i class="fa-solid fa-tv"></i> ترجمة سينمائية (CapCut)</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">خط عريض بخلفية داكنة احترافية</div>
+                  </label>
+
+                  <label class="caption-style-card" onclick="setCaptionMode('natural')" style="padding:10px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="natural" style="accent-color:#fff;">
+                    <div style="font-weight:700; color:#fff; font-size:0.9rem;"><i class="fa-solid fa-align-center"></i> نص كلاسيكي فصيح</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">كتابة عربية أنيقة بمنتصف وأسفل الشاشة</div>
+                  </label>
+
+                  <label class="caption-style-card" onclick="setCaptionMode('neon')" style="padding:10px; background:rgba(0,240,255,0.08); border:1px solid rgba(0,240,255,0.3); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="neon" style="accent-color:var(--cyan);">
+                    <div style="font-weight:700; color:var(--cyan); font-size:0.9rem;"><i class="fa-solid fa-bolt-lightning"></i> نيون متوهج (Neon)</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">توهج ضوئي حول الحروف بلون مضيء ونابض</div>
+                  </label>
+
+                  <label class="caption-style-card" onclick="setCaptionMode('typewriter')" style="padding:10px; background:rgba(255,200,0,0.08); border:1px solid rgba(255,200,0,0.3); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="typewriter" style="accent-color:var(--gold);">
+                    <div style="font-weight:700; color:var(--gold); font-size:0.9rem;"><i class="fa-solid fa-keyboard"></i> آلة كاتبة (Typewriter)</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">ظهور الحروف تدريجياً حرف بحرف مع نطق الكلام</div>
+                  </label>
+
+                  <label class="caption-style-card" onclick="setCaptionMode('tiktok_pop')" style="padding:10px; background:rgba(255,51,102,0.08); border:1px solid rgba(255,51,102,0.3); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="tiktok_pop" style="accent-color:#ff3366;">
+                    <div style="font-weight:700; color:#ff3366; font-size:0.9rem;"><i class="fa-solid fa-hashtag"></i> كلمة بكلمة (TikTok/Reels)</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">كلمة واحدة كبيرة تقفز بالمنتصف مثل فيديوهات تيك توك</div>
+                  </label>
+
+                  <label class="caption-style-card" onclick="setCaptionMode('glitch')" style="padding:10px; background:rgba(187,134,252,0.08); border:1px solid rgba(187,134,252,0.3); border-radius:10px; cursor:pointer; text-align:center;">
+                    <input type="radio" name="caption-style" value="glitch" style="accent-color:#bb86fc;">
+                    <div style="font-weight:700; color:#bb86fc; font-size:0.9rem;"><i class="fa-solid fa-tv"></i> غليتش سينمائي (Glitch)</div>
+                    <div style="font-size:0.75rem; color:#ccc; margin-top:4px;">اهتزاز وتشويش لوني حديث بأسلوب المؤثرات الرقمية</div>
+                  </label>
+
                 </div>
+
+                <!-- LIVE CONTROLS: FONT, COLOR, SIZE, SCROLL SPEED -->
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; background:rgba(0,0,0,0.3); padding:12px; border-radius:10px; margin-bottom:12px;">
+                  <div>
+                    <div style="font-size:0.85rem; color:var(--cyan); font-weight:700; margin-bottom:4px;"><i class="fa-solid fa-font"></i> نوع الخط العربي:</div>
+                    <select id="caption-font-family" onchange="updateLiveSubtitlePreview()" class="suite-url-input" style="padding:8px 12px; font-size:0.9rem; color:#fff; background:#0f111a; border:1px solid rgba(0,240,255,0.4); border-radius:8px; width:100%;">
+                      <option value="Cairo" selected style="font-family:'Cairo', sans-serif;">خط القاهرة (Cairo)</option>
+                      <option value="Tajawal" style="font-family:'Tajawal', sans-serif;">خط تجوال (Tajawal)</option>
+                      <option value="Amiri" style="font-family:'Amiri', serif;">خط أميري فخم (Amiri)</option>
+                      <option value="Almarai" style="font-family:'Almarai', sans-serif;">خط المراعي (Almarai)</option>
+                      <option value="El Messiri" style="font-family:'El Messiri', sans-serif;">خط المسيري (El Messiri)</option>
+                      <option value="Reem Kufi" style="font-family:'Reem Kufi', sans-serif;">خط الكوفي (Reem Kufi)</option>
+                      <option value="Aref Ruqaa" style="font-family:'Aref Ruqaa', serif;">خط الرقعة (Aref Ruqaa)</option>
+                      <option value="Georgia" style="font-family:'Georgia', serif;">خط سينمائي (Georgia/Serif)</option>
+                      <option value="Arial" style="font-family:'Arial', sans-serif;">خط افتراضي (System Sans)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <div style="font-size:0.85rem; color:var(--gold); font-weight:700; margin-bottom:4px;"><i class="fa-solid fa-palette"></i> لون النص والكلمات:</div>
+                    <div style="display:flex; gap:6px; margin-top:6px; align-items:center; flex-wrap:wrap;">
+                      <button type="button" onclick="setCaptionColor('#ffc800')" style="width:26px; height:26px; border-radius:50%; background:#ffc800; border:2px solid #fff; cursor:pointer;" title="ذهبي"></button>
+                      <button type="button" onclick="setCaptionColor('#00f0ff')" style="width:26px; height:26px; border-radius:50%; background:#00f0ff; border:2px solid #fff; cursor:pointer;" title="سماوي نيون"></button>
+                      <button type="button" onclick="setCaptionColor('#ffffff')" style="width:26px; height:26px; border-radius:50%; background:#ffffff; border:2px solid #fff; cursor:pointer;" title="أبيض"></button>
+                      <button type="button" onclick="setCaptionColor('#00ff96')" style="width:26px; height:26px; border-radius:50%; background:#00ff96; border:2px solid #fff; cursor:pointer;" title="أخضر نيون"></button>
+                      <button type="button" onclick="setCaptionColor('#ff3366')" style="width:26px; height:26px; border-radius:50%; background:#ff3366; border:2px solid #fff; cursor:pointer;" title="وردي"></button>
+                      <button type="button" onclick="setCaptionColor('#ffaa00')" style="width:26px; height:26px; border-radius:50%; background:#ffaa00; border:2px solid #fff; cursor:pointer;" title="برتقالي"></button>
+                      <button type="button" onclick="setCaptionColor('#bb86fc')" style="width:26px; height:26px; border-radius:50%; background:#bb86fc; border:2px solid #fff; cursor:pointer;" title="بنفسجي"></button>
+                      
+                      <!-- CUSTOM COLOR PICKER INPUT -->
+                      <input type="color" id="caption-custom-color" value="#ffc800" onchange="setCaptionColor(this.value)" style="width:28px; height:28px; border:none; border-radius:6px; background:none; cursor:pointer; padding:0;" title="اختر أي لون مخصص">
+                      <input type="hidden" id="caption-color-input" value="#ffc800">
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:var(--cyan); font-weight:700;">
+                      <span><i class="fa-solid fa-text-height"></i> حجم الخط (Font Size):</span>
+                      <span id="font-size-val">26px</span>
+                    </div>
+                    <input type="range" id="caption-font-size-slider" min="16" max="54" value="26" oninput="updateLiveSubtitlePreview()" style="width:100%; margin-top:4px; accent-color:var(--cyan);">
+                  </div>
+
+                  <div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:var(--gold); font-weight:700;">
+                      <span><i class="fa-solid fa-gauge-high"></i> سرعة الصعود / العرض:</span>
+                      <span id="scroll-speed-val">5 ثوانٍ</span>
+                    </div>
+                    <input type="range" id="caption-scroll-speed-slider" min="2" max="12" value="5" oninput="updateLiveSubtitlePreview()" style="width:100%; margin-top:4px; accent-color:var(--gold);">
+                  </div>
+                </div>
+
+                <!-- BURN SUBTITLES ONTO VIDEO BUTTON -->
+                <button type="button" class="suite-btn-download" onclick="burnCaptionsToVideoDirectly();" style="background: linear-gradient(135deg, #ffc800, #ff0055); color: #000; font-size:1rem; font-weight:800; width: 100%; padding:12px 18px; border-radius:12px; box-shadow:0 6px 20px rgba(255, 200, 0, 0.4); margin-bottom:8px;">
+                  <i class="fa-solid fa-fire"></i> 🔥 دمج وحرق الكلمات والتتر مباشرة بالفيديو النهائي (Burn Subtitles)
+                </button>
+
               </div>
 
-              <div class="stem-item" style="margin-top:12px;">
-                <div class="stem-label"><i class="fa-solid fa-guitar text-green"></i> 🎸 صوت الباص والقرار (Bass Only)</div>
-                <input type="range" class="capcut-slider" id="stem-vol-bass" min="0" max="400" value="0">
-                <div style="display:flex;gap:6px;margin-top:6px;">
-                  <button class="btn btn-green btn-sm" id="btn-play-bass"><i class="fa-solid fa-play"></i> تشغيل</button>
-                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-bass" href="#" download="bass_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
-                </div>
-              </div>
-
-              <div class="stem-item" style="margin-top:12px;">
-                <div class="stem-label"><i class="fa-solid fa-sliders text-purple"></i> 🎹 باقي الآلات - عود، قيتار، بيانو (Instruments)</div>
-                <input type="range" class="capcut-slider" id="stem-vol-other" min="0" max="400" value="0">
-                <div style="display:flex;gap:6px;margin-top:6px;">
-                  <button class="btn btn-purple btn-sm" id="btn-play-other"><i class="fa-solid fa-play"></i> تشغيل</button>
-                  <a class="btn btn-dark-outline btn-sm" id="btn-dl-other" href="#" download="instruments_clean.wav"><i class="fa-solid fa-download"></i> تنزيل</a>
-                </div>
-              </div>
-
-              <div style="margin-top:14px; text-align:center;">
-                <button class="btn btn-danger btn-sm btn-full" id="btn-stop-stem" style="display:none; background:#ff4d4d; color:#fff;">
-                  <i class="fa-solid fa-square"></i> إيقاف تشغيل الصوت الحالي
+              <div class="download-action-row" style="margin-top: 12px;">
+                <button class="suite-btn-download" onclick="downloadVideoDirectly();" style="background: linear-gradient(135deg, #00f0ff, #0070ff); color: #000; font-size:1.05rem; font-weight:700; width: 100%; padding:14px 20px; border-radius:14px; box-shadow:0 8px 25px rgba(0, 240, 255, 0.4);">
+                  <i class="fa-solid fa-download"></i> ⬇️ تحميل المقطع النهائي المعالج كملف مباشر (MP4)
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- 6. AI QUALITY UPSCALER TAB -->
-          <div class="tab-content" id="tab-ai-suite">
-            <div class="tab-header">
-              <h4>رفع وتفتيح الجودة (AI Quality Enhancer)</h4>
-              <p>معالجة الإضاءة المنخفضة والترقية إلى 4K فائقة الوضوح.</p>
+          <!-- AI BACKGROUND REMOVAL TOOL (IMAGE + VIDEO) -->
+          <div id="modal-bgremove-box" style="display:none;">
+            <h5 style="color:var(--gold); font-weight:800; font-size:1.05rem; margin-bottom:8px;"><i class="fa-solid fa-eraser"></i> اختر طريقة استبدال الخلفية:</h5>
+            <div class="bgremove-mode-grid">
+              <label class="bgremove-mode-card active" id="bgmode-card-transparent" onclick="setBgRemoveMode('transparent')">
+                <input type="radio" name="bgremove-mode" value="transparent" checked style="accent-color:var(--cyan);">
+                <div style="font-weight:700; color:var(--cyan); font-size:0.9rem;"><i class="fa-solid fa-border-none"></i> شفافة (Transparent)</div>
+                <div style="font-size:0.72rem; color:#ccc; margin-top:4px;">PNG بخلفية شفافة / فيديو WebM بقناة ألفا</div>
+              </label>
+              <label class="bgremove-mode-card" id="bgmode-card-color" onclick="setBgRemoveMode('color')">
+                <input type="radio" name="bgremove-mode" value="color" style="accent-color:var(--gold);">
+                <div style="font-weight:700; color:var(--gold); font-size:0.9rem;"><i class="fa-solid fa-fill-drip"></i> لون صلب (Color)</div>
+                <div style="font-size:0.72rem; color:#ccc; margin-top:4px;">استبدال الخلفية بلون واحد تختاره</div>
+              </label>
+              <label class="bgremove-mode-card" id="bgmode-card-blur" onclick="setBgRemoveMode('blur')">
+                <input type="radio" name="bgremove-mode" value="blur" style="accent-color:var(--green);">
+                <div style="font-weight:700; color:var(--green); font-size:0.9rem;"><i class="fa-solid fa-droplet"></i> تمويه (Blur)</div>
+                <div style="font-size:0.72rem; color:#ccc; margin-top:4px;">تمويه الخلفية الأصلية مثل وضع البورتريه</div>
+              </label>
+              <label class="bgremove-mode-card" id="bgmode-card-image" onclick="setBgRemoveMode('image')">
+                <input type="radio" name="bgremove-mode" value="image" style="accent-color:#ff3366;">
+                <div style="font-weight:700; color:#ff3366; font-size:0.9rem;"><i class="fa-solid fa-image"></i> صورة خلفية مخصصة</div>
+                <div style="font-size:0.72rem; color:#ccc; margin-top:4px;">ارفع أي صورة لتصبح الخلفية الجديدة</div>
+              </label>
             </div>
 
-            <div class="capcut-card-box">
-              <div class="toggle-row">
-                <div>
-                  <strong><i class="fa-solid fa-bolt text-gold"></i> ترقية الجودة 4K AI Upscale</strong>
-                  <span>توضيح الإطارات والتفاصيل</span>
-                </div>
-                <label class="capcut-switch"><input type="checkbox" id="chk-upscale-4k" checked><span class="switch-slider"></span></label>
+            <div id="bgremove-color-row" style="display:none; background:rgba(0,0,0,0.3); padding:12px; border-radius:10px; margin-bottom:10px;">
+              <label style="font-size:0.85rem; color:var(--gold); font-weight:700; display:block; margin-bottom:8px;"><i class="fa-solid fa-palette"></i> لون الخلفية الجديدة:</label>
+              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <button type="button" onclick="setBgRemoveColor('#00ff00')" style="width:26px; height:26px; border-radius:50%; background:#00ff00; border:2px solid #fff; cursor:pointer;" title="أخضر (Green Screen)"></button>
+                <button type="button" onclick="setBgRemoveColor('#0000ff')" style="width:26px; height:26px; border-radius:50%; background:#0000ff; border:2px solid #fff; cursor:pointer;" title="أزرق"></button>
+                <button type="button" onclick="setBgRemoveColor('#ffffff')" style="width:26px; height:26px; border-radius:50%; background:#ffffff; border:2px solid #fff; cursor:pointer;" title="أبيض"></button>
+                <button type="button" onclick="setBgRemoveColor('#000000')" style="width:26px; height:26px; border-radius:50%; background:#000000; border:2px solid #fff; cursor:pointer;" title="أسود"></button>
+                <button type="button" onclick="setBgRemoveColor('#ff3366')" style="width:26px; height:26px; border-radius:50%; background:#ff3366; border:2px solid #fff; cursor:pointer;" title="وردي"></button>
+                <input type="color" id="bgremove-custom-color" value="#00ff00" onchange="setBgRemoveColor(this.value)" style="width:28px; height:28px; border:none; border-radius:6px; background:none; cursor:pointer; padding:0;" title="لون مخصص">
+                <input type="hidden" id="bgremove-color-input" value="#00ff00">
               </div>
+            </div>
 
-              <div class="toggle-row">
-                <div>
-                  <strong><i class="fa-solid fa-sun text-orange"></i> إصلاح الإضاءة (Low-Light Fix)</strong>
-                  <span>تفتيح المشاهد المظلمة</span>
-                </div>
-                <label class="capcut-switch"><input type="checkbox" id="chk-lowlight-boost" checked><span class="switch-slider"></span></label>
+            <div id="bgremove-blur-row" style="display:none; background:rgba(0,0,0,0.3); padding:12px; border-radius:10px; margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; font-size:0.85rem; color:var(--green); font-weight:700;">
+                <span><i class="fa-solid fa-droplet"></i> شدة التمويه:</span>
+                <span id="bgremove-blur-val">25</span>
               </div>
+              <input type="range" id="bgremove-blur-slider" min="4" max="60" value="25" oninput="document.getElementById('bgremove-blur-val').innerText=this.value;" style="width:100%; margin-top:4px; accent-color:var(--green);">
+            </div>
 
-              <div class="toggle-row">
-                <div>
-                  <strong><i class="fa-solid fa-palette text-cyan"></i> تحسين الألوان (HDR Color Boost)</strong>
-                  <span>تشبع سينمائي غني</span>
-                </div>
-                <label class="capcut-switch"><input type="checkbox" id="chk-hdr-boost" checked><span class="switch-slider"></span></label>
-              </div>
+            <div id="bgremove-custombg-row" style="display:none; background:rgba(0,0,0,0.3); padding:12px; border-radius:10px; margin-bottom:10px;">
+              <button type="button" class="suite-btn-action" onclick="document.getElementById('bgremove-custombg-input').click();"><i class="fa-solid fa-upload"></i> ارفع صورة الخلفية الجديدة</button>
+              <input type="file" id="bgremove-custombg-input" accept="image/*" style="display:none;" onchange="onBgRemoveCustomBgSelected(event);">
+              <span id="bgremove-custombg-name" style="display:block; margin-top:6px; font-size:0.8rem; color:#ccc;"></span>
+            </div>
 
-              <button class="btn btn-capcut-cyan btn-full margin-top-sm" id="btn-apply-upscaling">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> تطبيق ترقية الجودة الان
+            <div id="bgremove-result-wrap" style="display:none; margin-top:12px;">
+              <h5 style="color:var(--cyan); font-weight:800; margin-bottom:8px;"><i class="fa-solid fa-wand-magic-sparkles"></i> النتيجة:</h5>
+              <img id="bgremove-result-image" class="bgremove-result-preview" style="display:none;">
+              <video id="bgremove-result-video" class="bgremove-result-preview" controls style="display:none;"></video>
+              <button class="suite-btn-download" onclick="downloadBgRemoveResult();" style="width:100%; margin-top:10px; background: linear-gradient(135deg, #00f0ff, #0070ff); color:#000;">
+                <i class="fa-solid fa-download"></i> ⬇️ تحميل النتيجة
               </button>
             </div>
           </div>
 
-          <!-- 7. CINEMATIC FILTERS TAB -->
-          <div class="tab-content" id="tab-filters">
-            <div class="tab-header">
-              <h4>الفلاتر والتدرجات السينمائية (Cinematic LUTs)</h4>
-              <p>تدرجات ألوان احترافية لتحسين مظاهر المشاهد.</p>
-            </div>
-
-            <div class="filters-grid" id="lut-filters-selector">
-              <div class="filter-card active" data-filter="normal">
-                <div class="filter-thumb filter-normal"></div>
-                <span>عادي (Normal)</span>
+          <!-- GENERIC SINGLE FILE DOWNLOAD / APPROVAL -->
+          <div id="generic-download-wrap" style="display:none; text-align:center;">
+            <audio id="generic-audio-player" controls style="width:100%; display:none; margin-bottom:12px;"></audio>
+            <video id="generic-video-player" controls style="max-width:100%; max-height:240px; border-radius:12px; display:none; margin-bottom:12px; border: 2px solid var(--green);"></video>
+            
+            <!-- STT TEXT AREA & COPY BUTTON -->
+            <div id="stt-output-box" style="display:none; margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="color:var(--cyan); font-weight:700; font-size:0.9rem;"><i class="fa-solid fa-pen-to-square"></i> محرر وتنسيق النص المستخرج (يمكنك التعديل والتقسيم بنفسك):</label>
+                <span class="suite-badge" style="background:rgba(0,240,255,0.15); color:var(--cyan); font-size:0.75rem; padding:2px 8px; border-radius:6px;">قابل للتحرير والتقسيم ✏️</span>
               </div>
-              <div class="filter-card" data-filter="moody-dark">
-                <div class="filter-thumb filter-moody"></div>
-                <span>مظلم سينمائي (Moody Dark)</span>
-              </div>
-              <div class="filter-card" data-filter="cyber-neon">
-                <div class="filter-thumb filter-cyber"></div>
-                <span>سايبر نيون (Cyber Neon)</span>
-              </div>
-              <div class="filter-card" data-filter="vintage-film">
-                <div class="filter-thumb filter-vintage"></div>
-                <span>فيلم كلاسيك (Vintage Film)</span>
-              </div>
-              <div class="filter-card" data-filter="warm-sunset">
-                <div class="filter-thumb filter-warm"></div>
-                <span>غروب دافئ (Warm Sunset)</span>
-              </div>
-              <div class="filter-card" data-filter="noir-bw">
-                <div class="filter-thumb filter-noir"></div>
-                <span>أسود وأبيض (Noir B&W)</span>
+              <textarea id="generic-text-result" oninput="updateLiveSubtitlePreview()" class="suite-textarea" style="min-height:120px; font-size:1rem; line-height:1.6; color:#fff; background:rgba(0,0,0,0.5); border:1px solid rgba(0,240,255,0.4); border-radius:10px; padding:12px;" placeholder="سيظهر النص المستخرج هنا ويمكنك تعديله بنفسك..."></textarea>
+              <div style="display:flex; gap:10px; margin-top:8px; justify-content:center;">
+                <button class="suite-btn-action" onclick="copyTranscriptText();"><i class="fa-solid fa-copy"></i> نسخ النص الكامل</button>
               </div>
             </div>
-          </div>
-
-          <!-- 8. EXPANDED VISUAL FX TAB (مكتبة المؤثرات الشاملة) -->
-          <div class="tab-content" id="tab-fx">
-            <div class="tab-header">
-              <h4>المؤثرات والتأثيرات السينمائية الموسعة</h4>
-            </div>
-
-            <div class="fx-grid" id="fx-selector">
-              <div class="fx-item-card" data-fx="earthquake-shake">
-                <i class="fa-solid fa-hand-shake fx-ico text-gold"></i>
-                <span>اهتزاز الزلزال (Earthquake)</span>
-              </div>
-              <div class="fx-item-card" data-fx="fire-sparks">
-                <i class="fa-solid fa-fire fx-ico text-orange"></i>
-                <span>شرار النار (Fire Sparks)</span>
-              </div>
-              <div class="fx-item-card" data-fx="particle-snow">
-                <i class="fa-solid fa-snowflake fx-ico text-cyan"></i>
-                <span>جزيئات ثلجية (Snow Dust)</span>
-              </div>
-              <div class="fx-item-card" data-fx="neon-grid">
-                <i class="fa-solid fa-border-all fx-ico text-purple"></i>
-                <span>شبكة نيون (Neon Grid)</span>
-              </div>
-              <div class="fx-item-card" data-fx="light-leak">
-                <i class="fa-solid fa-sun-plant-wilt fx-ico text-orange"></i>
-                <span>تسريب ضوء (Light Leak)</span>
-              </div>
-              <div class="fx-item-card" data-fx="rgb-split">
-                <i class="fa-solid fa-layer-group fx-ico text-cyan"></i>
-                <span>RGB Split Glitch</span>
-              </div>
-              <div class="fx-item-card" data-fx="optical-blur">
-                <i class="fa-solid fa-eye-slash fx-ico text-purple"></i>
-                <span>ضبابية سينمائية (Blur Focus)</span>
-              </div>
-              <div class="fx-item-card" data-fx="retro-vhs">
-                <i class="fa-solid fa-tv fx-ico text-green"></i>
-                <span>في إتش إس كلاسيك (Retro VHS)</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </aside>
-
-      <!-- CENTER PREVIEW PLAYER AREA -->
-      <section class="capcut-center-viewport">
-        
-        <!-- VIDEO CANVAS WRAPPER -->
-        <div class="player-canvas-container" id="player-container">
-          <div class="player-frame-box" id="player-wrapper">
-            <video id="main-video-player" playsinline preload="metadata"></video>
-            <canvas id="overlay-canvas"></canvas>
-
-            <!-- KINETIC ANIMATED TEXT CAPTION OVERLAY -->
-            <div class="kinetic-caption-overlay" id="captions-overlay-box"></div>
-
-            <!-- AI ACTIVE BADGE -->
-            <div class="ai-overlay-badge" id="ai-active-overlay-badge" style="display:none;">
-              <i class="fa-solid fa-sparkles"></i> <span id="active-ai-badge-text">AI 4K Ultra Active</span>
-            </div>
+            
+            <button class="suite-btn-download" onclick="downloadVideoDirectly();" style="font-size:1.05rem; padding:14px 28px;">
+              <i class="fa-solid fa-circle-check"></i> ⬇️ تحميل الملف النهائي كملف مباشر
+            </button>
           </div>
         </div>
 
-        <!-- PLAYER CONTROL BAR -->
-        <div class="capcut-player-controls">
-          <div class="timecode-box">
-            <span id="current-timecode">00:00.00</span>
-            <span class="sep">/</span>
-            <span id="total-duration">00:00.00</span>
-          </div>
-
-          <div class="play-center-btn-group">
-            <button class="btn-play-ctrl" id="btn-skip-back" title="تراجع 5 ثوانٍ"><i class="fa-solid fa-rotate-left"></i></button>
-            <button class="btn-play-ctrl btn-main-play" id="btn-play-pause" title="تشغيل / إيقاف (Space)"><i class="fa-solid fa-play"></i></button>
-            <button class="btn-play-ctrl" id="btn-skip-forward" title="تقديم 5 ثوانٍ"><i class="fa-solid fa-rotate-right"></i></button>
-          </div>
-
-          <div class="player-right-options">
-            <button class="btn-play-ctrl" id="btn-toggle-mute"><i class="fa-solid fa-volume-high"></i></button>
-            <input type="range" id="master-volume-slider" min="0" max="1" step="0.05" value="1" class="vol-slider">
-            <div class="v-line hide-mobile"></div>
-            <button class="btn-play-ctrl hide-mobile" id="btn-fullscreen"><i class="fa-solid fa-expand"></i></button>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- RIGHT PROPERTIES INSPECTOR -->
-      <aside class="capcut-right-inspector hide-mobile">
-        <div class="inspector-header">
-          <span class="insp-tab active">الخصائص</span>
-          <span class="insp-tab">الحركة والتأثيرات</span>
-        </div>
-
-        <div class="inspector-body">
-          <div class="insp-group">
-            <h5>السرعة والمنحنى (Speed Ramping)</h5>
-            <div class="slider-row">
-              <span class="lbl">السرعة:</span>
-              <input type="range" class="capcut-slider" id="slider-clip-speed" min="0.2" max="4.0" step="0.1" value="1.0">
-              <span class="val-txt" id="speed-val">1.0x</span>
-            </div>
-          </div>
-
-          <div class="insp-group">
-            <h5>تنسيق الصوت (Audio Volume)</h5>
-            <div class="slider-row">
-              <span class="lbl">المستوى:</span>
-              <input type="range" class="capcut-slider" id="slider-clip-volume" min="0" max="200" value="100">
-              <span class="val-txt" id="clip-vol-val">100%</span>
-            </div>
-          </div>
-
-          <div class="insp-group">
-            <h5>تعديل الألوان والسطوع (Color Adjustments)</h5>
-            <div class="slider-row">
-              <span class="lbl">السطوع:</span>
-              <input type="range" class="capcut-slider" id="slider-brightness" min="50" max="150" value="100">
-              <span class="val-txt" id="brightness-val">100%</span>
-            </div>
-            <div class="slider-row">
-              <span class="lbl">التباين:</span>
-              <input type="range" class="capcut-slider" id="slider-contrast" min="50" max="150" value="100">
-              <span class="val-txt" id="contrast-val">100%</span>
-            </div>
-            <div class="slider-row">
-              <span class="lbl">التشبع:</span>
-              <input type="range" class="capcut-slider" id="slider-saturation" min="0" max="200" value="100">
-              <span class="val-txt" id="saturation-val">100%</span>
-            </div>
-          </div>
-
-          <div class="insp-group">
-            <h5>تقنيات الذكاء الاصطناعي المطبقة</h5>
-            <div class="ai-tags-row" id="applied-ai-badges-list">
-              <span class="ai-pill pill-whisper"><i class="fa-solid fa-check"></i> Whisper STT</span>
-              <span class="ai-pill pill-4k"><i class="fa-solid fa-check"></i> 4K Enhancer</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-    </main>
-
-    <!-- BOTTOM MULTI-TRACK TIMELINE -->
-    <footer class="capcut-timeline">
-      
-      <!-- TIMELINE ACTION TOOLBAR -->
-      <div class="tl-action-bar">
-        <div class="tl-actions-right">
-          <button class="tl-btn" id="btn-split-clip"><i class="fa-solid fa-scissors"></i> قص (Split)</button>
-          <button class="tl-btn" id="btn-delete-clip"><i class="fa-solid fa-trash"></i> حذف</button>
-          <button class="tl-btn" id="btn-duplicate-clip"><i class="fa-solid fa-clone"></i> تكرار</button>
-        </div>
-
-        <div class="tl-actions-left hide-mobile">
-          <i class="fa-solid fa-magnifying-glass-minus zoom-icon" id="btn-zoom-out"></i>
-          <input type="range" id="timeline-zoom-slider" min="10" max="200" value="100" class="zoom-range">
-          <i class="fa-solid fa-magnifying-glass-plus zoom-icon" id="btn-zoom-in"></i>
-        </div>
       </div>
 
-      <!-- TIMELINE VIEWPORT -->
-      <div class="tl-viewport" id="timeline-viewport">
-        <!-- TIME RULER & PLAYHEAD -->
-        <div class="tl-ruler" id="timeline-ruler">
-          <div class="tl-playhead" id="timeline-playhead">
-            <div class="playhead-cap"></div>
-            <div class="playhead-stem"></div>
-          </div>
-          <div class="ticks-wrapper" id="ruler-ticks"></div>
-        </div>
-
-        <!-- TRACKS STACK -->
-        <div class="tl-tracks-stack">
-          
-          <!-- TRACK 1: TEXT & KINETIC SUBTITLES -->
-          <div class="tl-track track-text">
-            <div class="track-info">
-              <i class="fa-solid fa-font text-gold"></i>
-              <span>مسار النصوص المتحركة</span>
-            </div>
-            <div class="track-strip" id="track-content-text"></div>
-          </div>
-
-          <!-- TRACK 2: MAIN VIDEO -->
-          <div class="tl-track track-video">
-            <div class="track-info">
-              <i class="fa-solid fa-film text-cyan"></i>
-              <span>مسار الفيديو الرئيسي</span>
-            </div>
-            <div class="track-strip" id="track-content-video"></div>
-          </div>
-
-          <!-- TRACK 3: AUDIO & STEMS -->
-          <div class="tl-track track-audio">
-            <div class="track-info">
-              <i class="fa-solid fa-music text-purple"></i>
-              <span>مسار الصوت والأصوات الذكية</span>
-            </div>
-            <div class="track-strip" id="track-content-audio"></div>
-          </div>
-
-          <!-- TRACK 4: AI FILTERS & FX -->
-          <div class="tl-track track-fx">
-            <div class="track-info">
-              <i class="fa-solid fa-sparkles text-green"></i>
-              <span>مؤثرات الفلاتر</span>
-            </div>
-            <div class="track-strip" id="track-content-fx"></div>
-          </div>
-
-        </div>
+      <div class="suite-modal-footer">
+        <button id="btn-run-process" class="suite-btn-primary" onclick="executeCurrentTool();">
+          <i class="fa-solid fa-rocket"></i> ابدأ المعالجة بالذكاء الاصطناعي
+        </button>
       </div>
-    </footer>
 
-    <!-- AI PROCESSING MODAL -->
-    <div class="capcut-modal-backdrop" id="ai-processing-modal" style="display:none;">
-      <div class="capcut-modal">
-        <div class="glow-spinner"></div>
-        <h3 id="modal-ai-title">جاري المعالجة بالذكاء الاصطناعي...</h3>
-        <p id="modal-ai-desc">تطبيق استخراج النصوص وترقية الجودة الفائقة.</p>
-        <div class="modal-progress-track">
-          <div class="modal-progress-bar" id="modal-progress-fill"></div>
-        </div>
-        <span class="progress-txt" id="modal-progress-text">0%</span>
-      </div>
     </div>
-
-    <!-- EXPORT MODAL -->
-    <div class="capcut-modal-backdrop" id="export-modal" style="display:none;">
-      <div class="capcut-modal modal-large">
-        <div class="modal-top">
-          <h3><i class="fa-solid fa-arrow-up-from-bracket"></i> تصدير المشروع وحفظ الفيديو</h3>
-          <button class="close-btn" id="btn-close-export"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="modal-content-grid">
-          <div class="form-group">
-            <label>دقة التصدير (Resolution):</label>
-            <select id="export-res" class="capcut-select">
-              <option value="4k" selected>4K Ultra HD (2160p AI Boost)</option>
-              <option value="1080p">Full HD (1080p High Bitrate)</option>
-              <option value="720p">HD (720p Fast Render)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>معدل الإطارات (FPS):</label>
-            <select id="export-fps" class="capcut-select">
-              <option value="60" selected>60 FPS (Ultra Smooth)</option>
-              <option value="30">30 FPS (Standard)</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-bottom">
-          <button class="btn btn-dark-outline" id="btn-cancel-export">إلغاء</button>
-          <button class="btn btn-capcut-cyan" id="btn-confirm-export"><i class="fa-solid fa-download"></i> بدء التصدير والتنزيل</button>
-        </div>
-      </div>
-    </div>
-
   </div>
 
-  <script src="app.js?v=20260806_v1000"></script>
+  <!-- EXPORT QUALITY SELECTOR MODAL -->
+  <div id="export-quality-modal" class="suite-modal-overlay" style="display:none; z-index:1100;">
+    <div class="suite-modal-box" style="max-width:440px;">
+      <div class="suite-modal-header">
+        <h3><i class="fa-solid fa-sliders text-cyan"></i> اختر جودة التصدير والتحميل:</h3>
+        <button class="suite-modal-close" onclick="closeExportQualityModal();">&times;</button>
+      </div>
+      <div class="suite-modal-body">
+        <div class="quality-option-card" onclick="triggerQualityDownload('4k');">
+          <div class="q-icon"><i class="fa-solid fa-bolt text-gold"></i></div>
+          <div class="q-info">
+            <span class="q-title">4K Ultra HD (3840x2160)</span>
+            <span class="q-sub">أقصى وضوح ودقة سينمائية فائقة</span>
+          </div>
+        </div>
+
+        <div class="quality-option-card" onclick="triggerQualityDownload('1080p');">
+          <div class="q-icon"><i class="fa-solid fa-tv text-cyan"></i></div>
+          <div class="q-info">
+            <span class="q-title">1080p Full HD (1920x1080)</span>
+            <span class="q-sub">جودة عالية ممتازة وشائعة</span>
+          </div>
+        </div>
+
+        <div class="quality-option-card" onclick="triggerQualityDownload('720p');">
+          <div class="q-icon"><i class="fa-solid fa-mobile-screen text-green"></i></div>
+          <div class="q-info">
+            <span class="q-title">720p HD (1280x720)</span>
+            <span class="q-sub">جودة قياسية سريعة للتنزيل</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=20260810_SUITE_V135_EDITABLE_TEXT_LIVE_PREVIEW_AND_PROPER_FONT_SIZE_BURN"></script>
 </body>
 </html>

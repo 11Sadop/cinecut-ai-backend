@@ -13,3 +13,14 @@ librosa
 SpeechRecognition
 requests
 gradio
+
+# Background removal engine (image + video AI matting)
+rembg
+onnxruntime
+opencv-python-headless
+Pillow
+
+# Optional: enables English spell-correction in text_correction.py
+# (Arabic correction has no extra dependency). Safe to omit — the app
+# detects its absence and simply skips English spellcheck.
+pyspellchecker
