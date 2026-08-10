@@ -1,33 +1,12 @@
-const GPU_SERVER_URL = "https://cinecut-gpu-v42.loca.lt";
-
+// Deprecated: this used to proxy to a long-dead local tunnel
+// (cinecut-gpu-v42.loca.lt) and hasn't worked in a while. File results are
+// now served via /api/result/{jobId}?field=... URLs returned directly by
+// /api/job-status/{jobId} (see api/job-status/[id].js) — nothing in app.js
+// calls this path anymore. Kept only so a stale bookmark/link fails loudly
+// instead of hanging on a dead host.
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  try {
-    const { path } = req.query;
-    const pathStr = Array.isArray(path) ? path.join('/') : path;
-    const targetUrl = `${GPU_SERVER_URL}/api/stem/${pathStr}`;
-
-    const gpuResponse = await fetch(targetUrl, {
-      headers: {
-        'bypass-tunnel-reminder': 'true',
-        'Bypass-Tunnel-Reminder': 'true'
-      }
-    });
-
-    const contentType = gpuResponse.headers.get('content-type') || 'audio/wav';
-    const arrayBuffer = await gpuResponse.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    res.setHeader('Content-Type', contentType);
-    return res.status(200).send(buffer);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
+  return res.status(410).json({
+    error: 'This endpoint was retired. Results are now served via /api/result/{jobId}.',
+  });
 }

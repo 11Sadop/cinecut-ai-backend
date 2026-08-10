@@ -24,8 +24,13 @@ import shutil
 import asyncio
 
 
-# Fix Windows console encoding
-sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+# Fix Windows console encoding (best-effort — some hosting environments,
+# e.g. RunPod/serverless containers, wrap stdout in ways that don't expose
+# a real fileno(), so this must never crash the whole import).
+try:
+    sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+except Exception:
+    pass
 import tempfile
 import subprocess
 import numpy as np
@@ -441,7 +446,10 @@ async def transcribe_url(request: Request):
 # ─────────────────────────────────────────
 
 # Model directory for audio-separator
-AUDIO_SEP_MODEL_DIR = "C:/tmp/audio-separator-models/"
+# Cross-platform model cache dir (Windows dev machine vs. Linux
+# containers on Render/RunPod — os.name check avoids a literal "C:/tmp"
+# folder being created on Linux, which would just silently misplace models)
+AUDIO_SEP_MODEL_DIR = "C:/tmp/audio-separator-models/" if os.name == "nt" else os.path.join(tempfile.gettempdir(), "audio-separator-models") + "/"
 
 def _run_audio_separator(input_wav: str, model_filename: str, output_dir: str, stem: str = None):
     """Run audio-separator with Kim_Vocal_2 for 100% pure zero-bleed studio vocal extraction."""

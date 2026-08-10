@@ -24,3 +24,9 @@ Pillow
 # (Arabic correction has no extra dependency). Safe to omit — the app
 # detects its absence and simply skips English spellcheck.
 pyspellchecker
+
+# RunPod Serverless worker (handler.py) — job runtime + direct upload of
+# large inputs/outputs to Vercel Blob (works around Vercel's 4.5MB function
+# body limit; see handler.py's module docstring).
+runpod
+vercel_blob

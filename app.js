@@ -1,10 +1,75 @@
 /**
- * CineCut AI Pro Ultimate Suite V123
+ * CineCut AI Pro Ultimate Suite V124
  * Full GPU Tunnel Engine with Mobile Background Safari/Chrome Support
  */
 
-const GPU_TUNNEL = "https://replication-gives-mambo-gig.trycloudflare.com";
-const TUNNEL_HEADERS = { 'bypass-tunnel-reminder': 'true' };
+// GPU compute now runs on RunPod Serverless (auto-scaling workers, scale-to-
+// -zero when idle) behind this same Vercel deployment's own /api/* routes —
+// no more fragile local Cloudflare tunnel URL to keep updating. Every fetch
+// below goes through resolveMediaUrl() so both relative Vercel paths and
+// absolute/data URLs work unchanged.
+const GPU_TUNNEL = "";
+const TUNNEL_HEADERS = {};
+
+/** Resolves a path returned by our /api/* routes into a fetchable URL.
+ * Job results are now real Vercel Blob URLs (already absolute), so this
+ * mostly just passes those through; it also still handles the few
+ * same-origin relative /api/* paths (e.g. job-status) unchanged. */
+function resolveMediaUrl(path) {
+  if (!path) return path;
+  if (/^(https?:|blob:|data:)/i.test(path)) return path;
+  return `${GPU_TUNNEL}${path}`;
+}
+
+let _blobUploadFn = null;
+/** Uploads a File/Blob straight to Vercel Blob from the browser (bypasses
+ * Vercel's 4.5MB serverless function body limit entirely — the bytes never
+ * pass through any of our /api/* routes). Returns the resulting public URL,
+ * which is then sent to the job-submission routes as a small JSON string
+ * instead of the raw file. */
+async function uploadToBlob(file, filename) {
+  if (!_blobUploadFn) {
+    const mod = await import('https://esm.sh/@vercel/blob@0.27.1/client');
+    _blobUploadFn = mod.upload;
+  }
+  const blob = await _blobUploadFn(filename || file.name || 'upload.bin', file, {
+    access: 'public',
+    handleUploadUrl: '/api/blob-upload',
+  });
+  return blob.url;
+}
+
+/** Polls /api/job-status/{jobId} until RunPod finishes the job (or errors/
+ * times out), resolving with the final status payload. Used by any /api/*
+ * route that returns { job_id } for async GPU processing. */
+function pollJobStatus(jobId, maxWaitMs = 5 * 60 * 1000, pollIntervalMs = 1500) {
+  localStorage.setItem('cinecut_active_job_id', jobId);
+  let elapsed = 0;
+  return new Promise((resolve, reject) => {
+    const poller = setInterval(async () => {
+      elapsed += pollIntervalMs;
+      if (elapsed > maxWaitMs) {
+        clearInterval(poller);
+        reject(new Error('انتهت مهلة المعالجة'));
+        return;
+      }
+      try {
+        const statusRes = await fetch(`${GPU_TUNNEL}/api/job-status/${jobId}`, { headers: TUNNEL_HEADERS });
+        if (!statusRes.ok) return;
+        const statusData = await statusRes.json();
+        if (statusData.status === 'done') {
+          clearInterval(poller);
+          localStorage.removeItem('cinecut_active_job_id');
+          resolve(statusData);
+        } else if (statusData.status === 'error') {
+          clearInterval(poller);
+          localStorage.removeItem('cinecut_active_job_id');
+          reject(new Error(statusData.error || 'حدث خطأ أثناء المعالجة'));
+        }
+      } catch (e) {}
+    }, pollIntervalMs);
+  });
+}
 
 const state = {
   currentTool: 'stem',
@@ -425,14 +490,11 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
 
     let res;
     if (fileToUpload && fileToUpload.size > 1000) {
-      const formData = new FormData();
-      formData.append('file', fileToUpload, 'input_video.mp4');
-      formData.append('resolution', reqRes);
-      formData.append('fps', reqFps);
+      const fileUrl = await uploadToBlob(fileToUpload, 'input_video.mp4');
       res = await fetch(`${GPU_TUNNEL}/api/separate-audio`, {
         method: 'POST',
-        body: formData,
-        headers: TUNNEL_HEADERS
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+        body: JSON.stringify({ file_url: fileUrl, filename: 'input_video.mp4', resolution: reqRes, fps: reqFps })
       });
     } else {
       const targetUrl = state.originalInputUrl || state.previewUrl;
@@ -491,25 +553,25 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
 
     let vocalsRealBlobUrl = null;
     try {
-      const vRes = await fetch(`${GPU_TUNNEL}${vocalsPath}?bypass=true`, { headers: TUNNEL_HEADERS });
+      const vRes = await fetch(resolveMediaUrl(vocalsPath), { headers: TUNNEL_HEADERS });
       const vBlob = await vRes.blob();
       vocalsRealBlobUrl = URL.createObjectURL(vBlob);
     } catch(e) {
-      vocalsRealBlobUrl = `${GPU_TUNNEL}${vocalsPath}?bypass=true`;
+      vocalsRealBlobUrl = resolveMediaUrl(vocalsPath);
     }
 
     let cleanVideoRealBlobUrl = null;
     if (cleanMediaPath) {
       try {
-        const cRes = await fetch(`${GPU_TUNNEL}${cleanMediaPath}?bypass=true`, { headers: TUNNEL_HEADERS });
+        const cRes = await fetch(resolveMediaUrl(cleanMediaPath), { headers: TUNNEL_HEADERS });
         const cBlob = await cRes.blob();
         cleanVideoRealBlobUrl = URL.createObjectURL(cBlob);
       } catch(e) {
-        cleanVideoRealBlobUrl = `${GPU_TUNNEL}${cleanMediaPath}?bypass=true`;
+        cleanVideoRealBlobUrl = resolveMediaUrl(cleanMediaPath);
       }
     }
 
-    const cleanVideoDirectServerUrl = cleanMediaPath ? `${GPU_TUNNEL}${cleanMediaPath}?bypass=true` : null;
+    const cleanVideoDirectServerUrl = cleanMediaPath ? resolveMediaUrl(cleanMediaPath) : null;
 
     state.processedVocalsUrl     = vocalsRealBlobUrl;
     state.processedCleanVideoUrl = cleanVideoRealBlobUrl || cleanVideoDirectServerUrl;
@@ -726,21 +788,20 @@ async function run4kUpscale() {
     } else if (state.previewUrl && state.previewUrl.startsWith('blob:') && !state.selectedFile) {
       const bRes = await fetch(state.previewUrl);
       const bBlob = await bRes.blob();
-      const formData = new FormData();
-      formData.append('file', bBlob, 'video.mp4');
-      formData.append('resolution', resVal);
-      formData.append('fps', fpsVal);
-      formData.append('color_mode', colorVal);
-      formData.append('speed', speedVal);
-      res = await fetch(`${GPU_TUNNEL}/api/upscale`, { method: 'POST', body: formData, headers: TUNNEL_HEADERS });
+      const fileUrl = await uploadToBlob(bBlob, 'video.mp4');
+      res = await fetch(`${GPU_TUNNEL}/api/upscale`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+        body: JSON.stringify({ file_url: fileUrl, filename: 'video.mp4', resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+      });
     } else if (state.selectedFile) {
-      const formData = new FormData();
-      formData.append('file', state.selectedFile, state.selectedFile.name || 'video.mp4');
-      formData.append('resolution', resVal);
-      formData.append('fps', fpsVal);
-      formData.append('color_mode', colorVal);
-      formData.append('speed', speedVal);
-      res = await fetch(`${GPU_TUNNEL}/api/upscale`, { method: 'POST', body: formData, headers: TUNNEL_HEADERS });
+      const fname = state.selectedFile.name || 'video.mp4';
+      const fileUrl = await uploadToBlob(state.selectedFile, fname);
+      res = await fetch(`${GPU_TUNNEL}/api/upscale`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+        body: JSON.stringify({ file_url: fileUrl, filename: fname, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+      });
     } else {
       throw new Error('يرجى وضع رابط فيديو أو اختيار ملف أولاً');
     }
@@ -774,7 +835,7 @@ async function run4kUpscale() {
             if (statusData.status === 'done') {
               clearInterval(poller);
               localStorage.removeItem('cinecut_active_job_id');
-              const outUrl = `${GPU_TUNNEL}${statusData.upscale_url}?bypass=true`;
+              const outUrl = resolveMediaUrl(statusData.upscale_url);
               state.processedCleanVideoUrl = outUrl;
               state.processedMediaUrl = outUrl;
 
@@ -857,8 +918,10 @@ async function runVideoDownloader() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.file_url) {
-          const rawUrl = `${GPU_TUNNEL}${data.file_url}?bypass=true`;
+        const statusData = data.job_id ? await pollJobStatus(data.job_id, 3 * 60 * 1000) : data;
+        const fileUrl = statusData.file_url || statusData.result_url;
+        if (fileUrl) {
+          const rawUrl = resolveMediaUrl(fileUrl);
           try {
             const rRes = await fetch(rawUrl, { headers: TUNNEL_HEADERS });
             const rBlob = await rRes.blob();
@@ -957,19 +1020,27 @@ async function runSpeechToText() {
     } else if (state.previewUrl && state.previewUrl.startsWith('blob:') && !state.selectedFile) {
       const bRes = await fetch(state.previewUrl);
       const bBlob = await bRes.blob();
-      const formData = new FormData();
-      formData.append('file', bBlob, 'audio.wav');
-      formData.append('language', sttLang);
-      res = await fetch(`${GPU_TUNNEL}/api/transcribe`, { method: 'POST', body: formData, headers: TUNNEL_HEADERS });
+      const fileUrl = await uploadToBlob(bBlob, 'audio.wav');
+      res = await fetch(`${GPU_TUNNEL}/api/transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+        body: JSON.stringify({ file_url: fileUrl, filename: 'audio.wav', language: sttLang })
+      });
     } else if (state.selectedFile) {
-      const formData = new FormData();
-      formData.append('file', state.selectedFile, state.selectedFile.name || 'audio.wav');
-      formData.append('language', sttLang);
-      res = await fetch(`${GPU_TUNNEL}/api/transcribe`, { method: 'POST', body: formData, headers: TUNNEL_HEADERS });
+      const fname = state.selectedFile.name || 'audio.wav';
+      const fileUrl = await uploadToBlob(state.selectedFile, fname);
+      res = await fetch(`${GPU_TUNNEL}/api/transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+        body: JSON.stringify({ file_url: fileUrl, filename: fname, language: sttLang })
+      });
     }
 
     if (res && res.ok) {
-      const data = await res.json();
+      let data = await res.json();
+      if (data.job_id) {
+        data = await pollJobStatus(data.job_id, 5 * 60 * 1000);
+      }
       let transcriptText = '';
       if (data.transcript && Array.isArray(data.transcript)) {
         transcriptText = data.transcript.map(s => s.text).join('\n');
@@ -1082,17 +1153,18 @@ async function runBackgroundRemoval() {
   startProgress(isImage ? 10 : 20, isImage ? '✂️ جاري إزالة الخلفية من الصورة بالذكاء الاصطناعي...' : '✂️ جاري إزالة الخلفية من الفيديو إطاراً بإطار (قد تستغرق دقائق)...');
 
   try {
-    const formData = new FormData();
-    formData.append('file', state.selectedFile, state.selectedFile.name);
-    formData.append('mode', mode);
-    formData.append('color', color);
-    formData.append('blur_amount', blurAmount);
+    const fileUrl = await uploadToBlob(state.selectedFile, state.selectedFile.name);
+    const payload = { file_url: fileUrl, filename: state.selectedFile.name, mode, color, blur_amount: blurAmount };
     if (state.bgRemoveCustomBgFile) {
-      formData.append('custom_bg', state.bgRemoveCustomBgFile, state.bgRemoveCustomBgFile.name);
+      payload.custom_bg_url = await uploadToBlob(state.bgRemoveCustomBgFile, state.bgRemoveCustomBgFile.name);
     }
 
     const endpoint = isImage ? '/api/remove-background-image' : '/api/remove-background-video';
-    const res = await fetch(`${GPU_TUNNEL}${endpoint}`, { method: 'POST', body: formData, headers: TUNNEL_HEADERS });
+    const res = await fetch(`${GPU_TUNNEL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+      body: JSON.stringify(payload)
+    });
     if (!res.ok) throw new Error(`خطأ السيرفر ${res.status}`);
 
     let data = await res.json();
@@ -1136,7 +1208,7 @@ async function runBackgroundRemoval() {
     const resultPath = data.result_url;
     if (!resultPath) throw new Error('تعذر الحصول على رابط النتيجة');
 
-    const fullUrl = `${GPU_TUNNEL}${resultPath}?bypass=true`;
+    const fullUrl = resolveMediaUrl(resultPath);
     const rRes = await fetch(fullUrl, { headers: TUNNEL_HEADERS });
     const rBlob = await rRes.blob();
     const blobUrl = URL.createObjectURL(rBlob);
@@ -1376,36 +1448,41 @@ window.burnCaptionsToVideoDirectly = async function() {
   startProgress(8, '🔥 جاري حرق الكلمات والتتر المصمم سينمائياً على الفيديو عبر كرت الشاشة CUDA...');
 
   try {
-    const formData = new FormData();
-    formData.append('text', textVal);
-    formData.append('style_mode', captionMode);
-    formData.append('font_size', fontSize);
-    formData.append('font_color', fontColor);
-    formData.append('font_name', fontName);
+    const payload = {
+      text: textVal,
+      style_mode: captionMode,
+      font_size: fontSize,
+      font_color: fontColor,
+      font_name: fontName,
+    };
 
     // Send precise per-word timestamps for accurate animation (karaoke,
     // typewriter, tiktok_pop, glitch...) ONLY if the user hasn't diverged
     // the edited textarea from the original transcribed segments.
     const segJoined = (state.transcriptSegments || []).map(s => s.text).join('\n');
     if (state.transcriptSegments && state.transcriptSegments.length && segJoined === textVal) {
-      formData.append('segments_json', JSON.stringify(state.transcriptSegments));
+      payload.segments_json = JSON.stringify(state.transcriptSegments);
     }
 
     if (state.selectedFile) {
-      formData.append('file', state.selectedFile, state.selectedFile.name);
+      payload.file_url = await uploadToBlob(state.selectedFile, state.selectedFile.name);
+      payload.filename = state.selectedFile.name;
     }
 
     const res = await fetch(`${GPU_TUNNEL}/api/burn-subtitles`, {
       method: 'POST',
-      body: formData,
-      headers: TUNNEL_HEADERS
+      headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+      body: JSON.stringify(payload)
     });
 
     if (!res.ok) throw new Error(`Server error ${res.status}`);
 
-    const data = await res.json();
+    let data = await res.json();
+    if (data.job_id) {
+      data = await pollJobStatus(data.job_id, 5 * 60 * 1000);
+    }
     if (data.clean_media_url) {
-      const cleanUrl = `${GPU_TUNNEL}${data.clean_media_url}?bypass=true`;
+      const cleanUrl = resolveMediaUrl(data.clean_media_url);
       const r = await fetch(cleanUrl, { headers: TUNNEL_HEADERS });
       const b = await r.blob();
       const bUrl = URL.createObjectURL(b);
@@ -1446,8 +1523,8 @@ async function checkAndResumePendingMobileJob() {
       const cleanMediaPath = data.clean_media_url;
       const vocalsPath     = data.vocals_url || data.clean_media_url;
       if (vocalsPath) {
-        state.processedVocalsUrl = `${GPU_TUNNEL}${vocalsPath}?bypass=true`;
-        state.processedCleanVideoUrl = cleanMediaPath ? `${GPU_TUNNEL}${cleanMediaPath}?bypass=true` : state.processedVocalsUrl;
+        state.processedVocalsUrl = resolveMediaUrl(vocalsPath);
+        state.processedCleanVideoUrl = cleanMediaPath ? resolveMediaUrl(cleanMediaPath) : state.processedVocalsUrl;
         state.cleanMediaDirectUrl = state.processedCleanVideoUrl;
         state.lastSessionId = data.session_id;
 
