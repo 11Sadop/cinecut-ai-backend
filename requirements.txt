@@ -12,7 +12,6 @@ edge-tts
 librosa
 SpeechRecognition
 requests
-gradio
 
 # Background removal engine (image + video AI matting)
 rembg
