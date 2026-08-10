@@ -1,0 +1,21 @@
+# These files were superseded by api/job.js (a single consolidated
+# endpoint for every RunPod operation). Vercel's Hobby plan caps a
+# deployment at 12 Serverless Functions — keeping one file per operation
+# blew way past that ("No more than 12 Serverless Functions can be added
+# to a Deployment on the Hobby plan"). Excluding them here (rather than
+# deleting the files) keeps the code around for reference without Vercel
+# building each one as its own function.
+api/separate-audio.js
+api/stem-from-url.js
+api/upscale-url.js
+api/transcribe-url.js
+api/download-url.js
+api/upscale.js
+api/remove-background-image.js
+api/remove-background-video.js
+api/burn-subtitles.js
+api/transcribe.js
+api/separate.js
+api/stem/
+api/result/
+api/upscale-status/

@@ -491,17 +491,17 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
     let res;
     if (fileToUpload && fileToUpload.size > 1000) {
       const fileUrl = await uploadToBlob(fileToUpload, 'input_video.mp4');
-      res = await fetch(`${GPU_TUNNEL}/api/separate-audio`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ file_url: fileUrl, filename: 'input_video.mp4', resolution: reqRes, fps: reqFps })
+        body: JSON.stringify({ operation: 'separate_audio', file_url: fileUrl, filename: 'input_video.mp4', resolution: reqRes, fps: reqFps })
       });
     } else {
       const targetUrl = state.originalInputUrl || state.previewUrl;
-      res = await fetch(`${GPU_TUNNEL}/api/stem-from-url`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ url: targetUrl, resolution: reqRes, fps: reqFps })
+        body: JSON.stringify({ operation: 'stem_from_url', url: targetUrl, resolution: reqRes, fps: reqFps })
       });
     }
 
@@ -780,27 +780,27 @@ async function run4kUpscale() {
     const targetUrl   = state.originalInputUrl || urlInputVal || (state.previewUrl && !state.previewUrl.startsWith('blob:') ? state.previewUrl : '');
 
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.includes('tiktok.com') || targetUrl.includes('youtube.com') || targetUrl.includes('instagram.com')) && !state.selectedFile) {
-      res = await fetch(`${GPU_TUNNEL}/api/upscale-url`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ url: targetUrl, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+        body: JSON.stringify({ operation: 'upscale_url', url: targetUrl, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
       });
     } else if (state.previewUrl && state.previewUrl.startsWith('blob:') && !state.selectedFile) {
       const bRes = await fetch(state.previewUrl);
       const bBlob = await bRes.blob();
       const fileUrl = await uploadToBlob(bBlob, 'video.mp4');
-      res = await fetch(`${GPU_TUNNEL}/api/upscale`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ file_url: fileUrl, filename: 'video.mp4', resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+        body: JSON.stringify({ operation: 'upscale', file_url: fileUrl, filename: 'video.mp4', resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
       });
     } else if (state.selectedFile) {
       const fname = state.selectedFile.name || 'video.mp4';
       const fileUrl = await uploadToBlob(state.selectedFile, fname);
-      res = await fetch(`${GPU_TUNNEL}/api/upscale`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ file_url: fileUrl, filename: fname, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+        body: JSON.stringify({ operation: 'upscale', file_url: fileUrl, filename: fname, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
       });
     } else {
       throw new Error('يرجى وضع رابط فيديو أو اختيار ملف أولاً');
@@ -828,7 +828,7 @@ async function run4kUpscale() {
           }
 
           try {
-            const statusRes = await fetch(`${GPU_TUNNEL}/api/upscale-status/${jobId}`, { headers: TUNNEL_HEADERS });
+            const statusRes = await fetch(`${GPU_TUNNEL}/api/job-status/${jobId}`, { headers: TUNNEL_HEADERS });
             if (!statusRes.ok) return;
             const statusData = await statusRes.json();
 
@@ -911,10 +911,10 @@ async function runVideoDownloader() {
 
   if (!videoPlayUrl) {
     try {
-      const res = await fetch(`${GPU_TUNNEL}/api/download-url`, {
+      const res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ url: url, fmt: 'video' })
+        body: JSON.stringify({ operation: 'download_url', url: url, fmt: 'video' })
       });
       if (res.ok) {
         const data = await res.json();
@@ -1012,27 +1012,27 @@ async function runSpeechToText() {
   try {
     let res;
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.includes('tiktok.com') || targetUrl.includes('youtube.com') || targetUrl.includes('instagram.com')) && !state.selectedFile) {
-      res = await fetch(`${GPU_TUNNEL}/api/transcribe-url`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ url: targetUrl, language: sttLang })
+        body: JSON.stringify({ operation: 'transcribe_url', url: targetUrl, language: sttLang })
       });
     } else if (state.previewUrl && state.previewUrl.startsWith('blob:') && !state.selectedFile) {
       const bRes = await fetch(state.previewUrl);
       const bBlob = await bRes.blob();
       const fileUrl = await uploadToBlob(bBlob, 'audio.wav');
-      res = await fetch(`${GPU_TUNNEL}/api/transcribe`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ file_url: fileUrl, filename: 'audio.wav', language: sttLang })
+        body: JSON.stringify({ operation: 'transcribe', file_url: fileUrl, filename: 'audio.wav', language: sttLang })
       });
     } else if (state.selectedFile) {
       const fname = state.selectedFile.name || 'audio.wav';
       const fileUrl = await uploadToBlob(state.selectedFile, fname);
-      res = await fetch(`${GPU_TUNNEL}/api/transcribe`, {
+      res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ file_url: fileUrl, filename: fname, language: sttLang })
+        body: JSON.stringify({ operation: 'transcribe', file_url: fileUrl, filename: fname, language: sttLang })
       });
     }
 
@@ -1154,13 +1154,15 @@ async function runBackgroundRemoval() {
 
   try {
     const fileUrl = await uploadToBlob(state.selectedFile, state.selectedFile.name);
-    const payload = { file_url: fileUrl, filename: state.selectedFile.name, mode, color, blur_amount: blurAmount };
+    const payload = {
+      operation: isImage ? 'remove_background_image' : 'remove_background_video',
+      file_url: fileUrl, filename: state.selectedFile.name, mode, color, blur_amount: blurAmount
+    };
     if (state.bgRemoveCustomBgFile) {
       payload.custom_bg_url = await uploadToBlob(state.bgRemoveCustomBgFile, state.bgRemoveCustomBgFile.name);
     }
 
-    const endpoint = isImage ? '/api/remove-background-image' : '/api/remove-background-video';
-    const res = await fetch(`${GPU_TUNNEL}${endpoint}`, {
+    const res = await fetch(`${GPU_TUNNEL}/api/job`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
       body: JSON.stringify(payload)
@@ -1449,6 +1451,7 @@ window.burnCaptionsToVideoDirectly = async function() {
 
   try {
     const payload = {
+      operation: 'burn_subtitles',
       text: textVal,
       style_mode: captionMode,
       font_size: fontSize,
@@ -1469,7 +1472,7 @@ window.burnCaptionsToVideoDirectly = async function() {
       payload.filename = state.selectedFile.name;
     }
 
-    const res = await fetch(`${GPU_TUNNEL}/api/burn-subtitles`, {
+    const res = await fetch(`${GPU_TUNNEL}/api/job`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
       body: JSON.stringify(payload)
