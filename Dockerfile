@@ -38,14 +38,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # loaded on first use, and since this endpoint scales workers down to ZERO
 # when idle (that's the whole point of Serverless), every single cold start
 # would have to re-download rembg's ~176MB matting model, faster-whisper's
-# ~1.5GB medium model, and Demucs's htdemucs_6s + htdemucs_ft checkpoints
+# large-v3 model (matches what get_whisper_model() loads at runtime on CUDA), and Demucs's htdemucs_6s + htdemucs_ft checkpoints
 # (~500MB+ each) from GitHub/HuggingFace before doing any real work, turning
 # "scales up in seconds" into "waits several minutes per cold start" and
 # making every request depend on those external hosts being fast and up.
 # Baking the weights into the image means a cold start only pays for
 # container boot; the actual model files ship as image layers.
 RUN python -c "from rembg import new_session; new_session('isnet-general-use')" \
-    && python -c "from faster_whisper import WhisperModel; WhisperModel('medium', device='cpu', compute_type='int8')" \
+    && python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3', device='cpu', compute_type='int8')" \
         && python -c "from demucs.pretrained import get_model; get_model('htdemucs_6s'); get_model('htdemucs_ft')"
 
 # ── Application code ────────────────────────────────────────────────────
