@@ -50,6 +50,32 @@ _NOISE_TAG_PATTERN = re.compile(
 # to strip since it never changes meaning.
 _TATWEEL_PATTERN = re.compile(r'ـ+')
 
+# Whisper frequently hallucinates a single bare (unbracketed) word like
+# "موسيقى" / "Music" for a whole segment when that stretch of audio is pure
+# instrumental with no speech — the noise-tag pattern above only strips the
+# BRACKETED form ("[موسيقى]"), so a bare hallucinated word was slipping
+# through as if it were real transcribed speech (reported bug: extracting
+# text from a music clip returned the literal word "موسيقى" as the
+# "transcript"). We only drop a segment when, after trimming punctuation,
+# it consists of NOTHING BUT one of these words — never when the word
+# appears as part of an actual sentence (e.g. "أحب الموسيقى كثيراً" stays
+# untouched), so this can't eat real speech that happens to mention music.
+_BARE_HALLUCINATION_WORDS = {
+    'موسيقى', 'موسيقا', 'تصفيق', 'ضحك', 'صمت', 'ضوضاء', 'غير مسموع',
+    'music', 'applause', 'laughter', 'noise', 'silence', 'inaudible',
+}
+_TRIM_PUNCT_PATTERN = re.compile(r'^[\s.,!?؟،؛:\-–—…]+|[\s.,!?؟،؛:\-–—…]+$')
+
+
+def _strip_if_bare_hallucination(text: str) -> str:
+    """Returns '' if `text`, once trimmed of surrounding punctuation, is
+    NOTHING but one known Whisper hallucination word; otherwise returns
+    `text` unchanged."""
+    if not text:
+        return text
+    bare = _TRIM_PUNCT_PATTERN.sub('', text).strip().lower()
+    return '' if bare in _BARE_HALLUCINATION_WORDS else text
+
 # Collapse 2+ identical consecutive punctuation marks: "!!!" -> "!", "؟؟" -> "؟"
 _REPEAT_PUNCT_PATTERN = re.compile(r'([!؟?.,،؛;:])\1{1,}')
 
@@ -110,7 +136,8 @@ def clean_arabic_lyric(text: str) -> str:
     text = _NO_SPACE_AFTER_PUNCT_PATTERN.sub(r'\1 \2', text)
     text = _MULTI_SPACE_PATTERN.sub(' ', text)
     text = _collapse_stutter_repeats(text)
-    return text.strip()
+    text = text.strip()
+    return _strip_if_bare_hallucination(text)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -197,9 +224,9 @@ def postprocess_transcript_text(text: str, language: str = "ar") -> str:
     if lang.startswith("ar"):
         return clean_arabic_lyric(text)
     if lang.startswith("en"):
-        return spellcheck_english(normalize_english_text(text))
+        return _strip_if_bare_hallucination(spellcheck_english(normalize_english_text(text)))
     # Unknown language: run only the safe generic cleanup (punctuation/
     # spacing), skip dictionary-specific corrections.
     text = _REPEAT_PUNCT_PATTERN.sub(r'\1', text)
     text = _MULTI_SPACE_PATTERN.sub(' ', text)
-    return text.strip()
+    return _strip_if_bare_hallucination(text.strip())
