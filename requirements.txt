@@ -13,6 +13,14 @@ librosa
 SpeechRecognition
 requests
 
+# Video/audio downloader used by _sync_download_url (server.py) for the
+# "download from URL" / "process a pasted link" flows (YouTube, TikTok,
+# Instagram, etc). Was imported in server.py but never actually listed here,
+# so every RunPod worker was missing it entirely: the bare import yt_dlp
+# raised ModuleNotFoundError, which the broad except swallowed, making every
+# URL download silently fail with a generic "couldn't download" error.
+yt-dlp
+
 # Background removal engine (image + video AI matting)
 rembg
 onnxruntime
