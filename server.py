@@ -535,7 +535,16 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
             waveform = (waveform - ref.mean()) / (ref.std() + 1e-8)
             
             with torch.no_grad():
-                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=2, split=True, overlap=0.25)[0]
+                # shifts=1 (not 2): the "zero bleed" guarantee for every
+                # instrument (drums included) comes from the STFT spectral
+                # mask + subtraction stage right below, which runs
+                # regardless of how many shifts Demucs itself used — shifts
+                # mainly smooths boundary artifacts, it doesn't materially
+                # change whether bleed survives, since the debleed stage
+                # scrubs whatever comes out of this step anyway. Halving
+                # shifts here roughly halves this step's GPU time with no
+                # loss to the actual bleed-removal guarantee.
+                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=1, split=True, overlap=0.25)[0]
             
             sources = sources * ref.std() + ref.mean()
             stems = model_demucs.sources
@@ -631,7 +640,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
             except Exception as e_boost:
                 shutil.copy2(vocals_file, vocals_out)
         else:
-            print(f"⚡ Running Demucs htdemucs_ft PyTorch CUDA GPU Engine (shifts=2)...")
+            print(f"⚡ Running Demucs htdemucs_ft PyTorch CUDA GPU Engine (shifts=1)...")
             from demucs.pretrained import get_model
             from demucs.apply import apply_model
             demucs_model = get_model("htdemucs_ft")
@@ -642,7 +651,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                 data = np.column_stack((data, data))
             waveform = torch.tensor(data.astype(np.float32).T, dtype=torch.float32).unsqueeze(0).to(DEVICE)
             with torch.no_grad():
-                sources = apply_model(demucs_model, waveform, device=DEVICE, shifts=2, overlap=0.25)[0]
+                sources = apply_model(demucs_model, waveform, device=DEVICE, shifts=1, overlap=0.25)[0]
             
             src_names = list(demucs_model.sources)
             v_idx = src_names.index("vocals") if "vocals" in src_names else 3
