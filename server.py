@@ -591,31 +591,56 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     mag_i = np.abs(Zi)
                     
                     # Ultra-Pure Studio Zero-Bleed Spectral Mask (100% Pure Vocals, Zero Music Bleed)
-                    # Two-stage suppression against ALL instrumental bleed
-                    # (guitar/piano/drums/bass/other, summed into i_tensor
-                    # above) — drums in particular have loud, broadband
-                    # transient energy that a soft ratio mask alone tends to
-                    # let bleed through as short bursts in the vocal track:
-                    #   1) A steeper, higher-threshold gain mask zeroes any
-                    #      time-frequency bin unless vocal energy clearly
-                    #      dominates instrumental energy in it.
-                    #   2) A direct spectral subtraction on top of that:
-                    #      whatever instrumental magnitude still overlaps a
-                    #      surviving vocal bin (e.g. a drum hit's harmonics
-                    #      landing on a vocal formant — something Demucs's
-                    #      own separation already baked into the "vocals"
-                    #      stem) gets subtracted out directly, not just
-                    #      attenuated, before reconstructing with the
-                    #      vocal's own phase.
+                    # Three-stage suppression against ALL instrumental bleed
+                    # (guitar/piano/drums/bass/oud/horn/etc — anything summed
+                    # into i_tensor above). Drums specifically kept surviving
+                    # the first two stages as short audible bursts, because a
+                    # drum hit is a broadband IMPULSE: for one instant nearly
+                    # every frequency bin lights up at once, and if Demucs's
+                    # own "vocals" stem estimate happens to have leaked
+                    # comparable energy into a handful of those bins at that
+                    # same instant (a real, common Demucs artifact right at
+                    # transient onsets), a purely per-bin mask/subtraction can
+                    # still let those few bins through — which is enough for
+                    # the ear to hear the hit.
+                    #   1) A steep, high-threshold per-bin gain mask zeroes
+                    #      any time-frequency bin unless vocal energy clearly
+                    #      and strongly dominates instrumental energy in it.
+                    #   2) Direct spectral subtraction (over-subtracted, not
+                    #      just attenuated) removes whatever instrumental
+                    #      magnitude still overlaps a surviving bin.
+                    #   3) NEW — a broadband transient gate operating on whole
+                    #      time-frames rather than individual bins: if
+                    #      instrumental energy is dominant across most of the
+                    #      spectrum at a given instant (the signature of a
+                    #      drum/percussion hit, unlike a sustained tonal
+                    #      instrument which only occupies its own harmonics),
+                    #      the ENTIRE vocal frame at that instant is muted —
+                    #      closing the loophole stage 1+2 leave open.
                     snr = mag_v / (mag_i + 1e-6)
-                    mask = np.clip(1.0 - np.exp(-2.2 * (snr**1.8)), 0.0, 1.0)
-                    mask[snr < 0.6] = 0.0  # zero any bin where instrumental isn't clearly dominated by vocal
+                    mask = np.clip(1.0 - np.exp(-3.0 * (snr**2.0)), 0.0, 1.0)
+                    mask[snr < 1.0] = 0.0  # trust a bin only when vocal energy truly exceeds instrumental
 
                     Zv_masked = Zv * mask
                     mag_v_masked = np.abs(Zv_masked)
-                    mag_v_clean = np.maximum(mag_v_masked - 0.9 * mag_i, 0.0)
+                    mag_v_clean = np.maximum(mag_v_masked - 1.2 * mag_i, 0.0)
                     phase_v = np.angle(Zv_masked)
                     Zv_clean = mag_v_clean * np.exp(1j * phase_v)
+
+                    # Broadband percussive-transient gate (targets drum hits
+                    # specifically): per time-frame, what fraction of
+                    # frequency bins have instrumental magnitude clearly
+                    # beating vocal magnitude? A sustained tonal instrument
+                    # (guitar/piano/oud) only ever dominates its own handful
+                    # of harmonic bins, so this fraction stays low even while
+                    # it's playing. A drum/percussion hit lights up the
+                    # entire spectrum simultaneously, so this fraction spikes
+                    # sharply right at the hit — that's the signature we gate
+                    # on, independent of the per-bin mask above.
+                    instrumental_dominant = (mag_i > (0.5 * mag_v + 1e-6))
+                    broadband_frac = np.mean(instrumental_dominant, axis=0)
+                    frame_gate = (broadband_frac < 0.55).astype(np.float32)
+                    Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
                     _, clean_ch = scipy.signal.istft(Zv_clean, fs=sr_v, nperseg=2048, noverlap=1536)
                     clean_channels.append(clean_ch[:min_l])
