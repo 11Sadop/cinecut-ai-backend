@@ -479,13 +479,13 @@
           <div id="modal-bgremove-box" style="display:none;">
             <h5 style="color:var(--gold); font-weight:800; font-size:1.05rem; margin-bottom:8px;"><i class="fa-solid fa-eraser"></i> اختر طريقة استبدال الخلفية:</h5>
             <div class="bgremove-mode-grid">
-              <label class="bgremove-mode-card active" id="bgmode-card-transparent" onclick="setBgRemoveMode('transparent')">
-                <input type="radio" name="bgremove-mode" value="transparent" checked style="accent-color:var(--cyan);">
+              <label class="bgremove-mode-card" id="bgmode-card-transparent" onclick="setBgRemoveMode('transparent')">
+                <input type="radio" name="bgremove-mode" value="transparent" style="accent-color:var(--cyan);">
                 <div style="font-weight:700; color:var(--cyan); font-size:0.9rem;"><i class="fa-solid fa-border-none"></i> شفافة (Transparent)</div>
-                <div style="font-size:0.72rem; color:#ccc; margin-top:4px;">PNG بخلفية شفافة / فيديو WebM بقناة ألفا</div>
+                <div style="font-size:0.72rem; color:#ccc; margin-top:4px;">PNG بخلفية شفافة (الفيديو: ملاحظة — أغلب المشغلات لا تعرض شفافية الفيديو، استخدم لون أو تمويه لرؤية واضحة)</div>
               </label>
-              <label class="bgremove-mode-card" id="bgmode-card-color" onclick="setBgRemoveMode('color')">
-                <input type="radio" name="bgremove-mode" value="color" style="accent-color:var(--gold);">
+              <label class="bgremove-mode-card active" id="bgmode-card-color" onclick="setBgRemoveMode('color')">
+                <input type="radio" name="bgremove-mode" value="color" checked style="accent-color:var(--gold);">
                 <div style="font-weight:700; color:var(--gold); font-size:0.9rem;"><i class="fa-solid fa-fill-drip"></i> لون صلب (Color)</div>
                 <div style="font-size:0.72rem; color:#ccc; margin-top:4px;">استبدال الخلفية بلون واحد تختاره</div>
               </label>
@@ -501,7 +501,7 @@
               </label>
             </div>
 
-            <div id="bgremove-color-row" style="display:none; background:rgba(0,0,0,0.3); padding:12px; border-radius:10px; margin-bottom:10px;">
+            <div id="bgremove-color-row" style="display:block; background:rgba(0,0,0,0.3); padding:12px; border-radius:10px; margin-bottom:10px;">
               <label style="font-size:0.85rem; color:var(--gold); font-weight:700; display:block; margin-bottom:8px;"><i class="fa-solid fa-palette"></i> لون الخلفية الجديدة:</label>
               <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                 <button type="button" onclick="setBgRemoveColor('#00ff00')" style="width:26px; height:26px; border-radius:50%; background:#00ff00; border:2px solid #fff; cursor:pointer;" title="أخضر (Green Screen)"></button>
