@@ -15,7 +15,7 @@
  * route just passes those fields through as-is (no re-fetching/decoding
  * needed here).
  */
-import { runpodStatus, setCors, sendError } from "../_runpod.js";
+import { runpodStatus, runpodCancel, setCors, sendError } from "../_runpod.js";
 
 export default async function handler(req, res) {
   setCors(res);
@@ -23,6 +23,19 @@ export default async function handler(req, res) {
 
   const jobId = req.query.id;
   if (!jobId) return res.status(400).json({ error: "Missing job id" });
+
+  // DELETE /api/job-status/:id — cancel-operation support. Actually tells
+  // RunPod to stop the job (frees the GPU worker immediately) instead of
+  // just having the browser stop polling while the job keeps running.
+  if (req.method === "DELETE") {
+    try {
+      await runpodCancel(jobId);
+      return res.status(200).json({ status: "cancelled" });
+    } catch (err) {
+      if (err.isConfigError) return res.status(200).json({ status: "error", error: err.message });
+      return sendError(res, err);
+    }
+  }
 
   try {
     const s = await runpodStatus(jobId);
