@@ -509,6 +509,8 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
     sep_output_dir = os.path.join(TEMP_DIR, f"sep_{session_id}")
     os.makedirs(sep_output_dir, exist_ok=True)
 
+    vocals_file = None
+    instrumental_file = None
     try:
         # ═══════════════════════════════════════════════════════════════
         # Ultra-Fast CUDA GPU Separation Engine (5.0s Total Time)
@@ -533,7 +535,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
             waveform = (waveform - ref.mean()) / (ref.std() + 1e-8)
             
             with torch.no_grad():
-                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=1, split=True, overlap=0.25)[0]
+                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=2, split=True, overlap=0.25)[0]
             
             sources = sources * ref.std() + ref.mean()
             stems = model_demucs.sources
@@ -580,11 +582,32 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     mag_i = np.abs(Zi)
                     
                     # Ultra-Pure Studio Zero-Bleed Spectral Mask (100% Pure Vocals, Zero Music Bleed)
+                    # Two-stage suppression against ALL instrumental bleed
+                    # (guitar/piano/drums/bass/other, summed into i_tensor
+                    # above) — drums in particular have loud, broadband
+                    # transient energy that a soft ratio mask alone tends to
+                    # let bleed through as short bursts in the vocal track:
+                    #   1) A steeper, higher-threshold gain mask zeroes any
+                    #      time-frequency bin unless vocal energy clearly
+                    #      dominates instrumental energy in it.
+                    #   2) A direct spectral subtraction on top of that:
+                    #      whatever instrumental magnitude still overlaps a
+                    #      surviving vocal bin (e.g. a drum hit's harmonics
+                    #      landing on a vocal formant — something Demucs's
+                    #      own separation already baked into the "vocals"
+                    #      stem) gets subtracted out directly, not just
+                    #      attenuated, before reconstructing with the
+                    #      vocal's own phase.
                     snr = mag_v / (mag_i + 1e-6)
-                    mask = np.clip(1.0 - np.exp(-0.8 * (snr**1.5)), 0.0, 1.0)
-                    mask[snr < 0.35] = 0.0  # Zero-out music noise floor completely
-                    
-                    Zv_clean = Zv * mask
+                    mask = np.clip(1.0 - np.exp(-2.2 * (snr**1.8)), 0.0, 1.0)
+                    mask[snr < 0.6] = 0.0  # zero any bin where instrumental isn't clearly dominated by vocal
+
+                    Zv_masked = Zv * mask
+                    mag_v_masked = np.abs(Zv_masked)
+                    mag_v_clean = np.maximum(mag_v_masked - 0.9 * mag_i, 0.0)
+                    phase_v = np.angle(Zv_masked)
+                    Zv_clean = mag_v_clean * np.exp(1j * phase_v)
+
                     _, clean_ch = scipy.signal.istft(Zv_clean, fs=sr_v, nperseg=2048, noverlap=1536)
                     clean_channels.append(clean_ch[:min_l])
                 
