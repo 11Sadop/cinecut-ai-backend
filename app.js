@@ -886,7 +886,8 @@ async function runVideoDownloader() {
   state.isProcessing = true;
   startProgress(15, '⚡ جاري جلب ومعاينة الفيديو بالذكاء الاصطناعي...');
 
-  let videoPlayUrl = null;
+let videoPlayUrl = null;
+  let lastFetchError = null;
   state.originalInputUrl = url;
 
   const isShortLink = url.includes('tiktok.com') || url.includes('vm.tiktok') || url.includes('vt.tiktok');
@@ -906,7 +907,7 @@ async function runVideoDownloader() {
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { lastFetchError = e; }
   }
 
   if (!videoPlayUrl) {
@@ -919,6 +920,9 @@ async function runVideoDownloader() {
       if (res.ok) {
         const data = await res.json();
         const statusData = data.job_id ? await pollJobStatus(data.job_id, 3 * 60 * 1000) : data;
+        if (statusData.status === 'error') {
+          throw new Error(statusData.error || 'تعذر تنزيل الفيديو');
+        }
         const fileUrl = statusData.file_url || statusData.result_url;
         if (fileUrl) {
           const rawUrl = resolveMediaUrl(fileUrl);
@@ -929,13 +933,22 @@ async function runVideoDownloader() {
           } catch(e) {
             videoPlayUrl = rawUrl;
           }
+        } else {
+          throw new Error('لم يصل رابط الملف الناتج من الخادم');
         }
+      } else {
+        throw new Error('فشل الاتصال بالخادم (HTTP ' + res.status + ')');
       }
-    } catch (e) {}
+    } catch (e) { lastFetchError = e; }
   }
 
   if (!videoPlayUrl) {
-    videoPlayUrl = url;
+    clearInterval(state.progressInterval);
+    clearInterval(state.timerInterval);
+    state.isProcessing = false;
+    var errMsg = (lastFetchError && lastFetchError.message) ? lastFetchError.message : 'خطأ غير معروف';
+    alert('⚠️ تعذر جلب الفيديو من هذا الرابط: ' + errMsg + '\n\nيرجى التأكد من صحة الرابط أو تحميل الفيديو ورفعه مباشرة من جهازك.');
+    return;
   }
 
   state.previewUrl = videoPlayUrl;
