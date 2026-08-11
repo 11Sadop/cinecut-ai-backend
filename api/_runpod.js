@@ -64,6 +64,23 @@ export async function runpodStatus(jobId) {
   return data; // { id, status: IN_QUEUE|IN_PROGRESS|COMPLETED|FAILED|CANCELLED, output, error }
 }
 
+/** Cancels a queued or in-progress RunPod job (stops GPU billing for it
+ * immediately instead of letting it run to completion/timeout). Safe to
+ * call on a job that already finished — RunPod just returns its final
+ * status in that case rather than erroring. */
+export async function runpodCancel(jobId) {
+  assertConfigured();
+  const resp = await fetch(`${RUNPOD_BASE}/${RUNPOD_ENDPOINT_ID}/cancel/${jobId}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${RUNPOD_API_KEY}` },
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    throw new Error(data?.error || `RunPod /cancel failed (${resp.status})`);
+  }
+  return data;
+}
+
 export function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
