@@ -44,6 +44,7 @@ async function uploadToBlob(file, filename) {
  * route that returns { job_id } for async GPU processing. */
 function pollJobStatus(jobId, maxWaitMs = 5 * 60 * 1000, pollIntervalMs = 1500) {
   localStorage.setItem('cinecut_active_job_id', jobId);
+  state.activeJobId = jobId;
   let elapsed = 0;
   return new Promise((resolve, reject) => {
     const poller = setInterval(async () => {
@@ -68,6 +69,7 @@ function pollJobStatus(jobId, maxWaitMs = 5 * 60 * 1000, pollIntervalMs = 1500) 
         }
       } catch (e) {}
     }, pollIntervalMs);
+    state.activeJobPoller = poller;
   });
 }
 
@@ -84,6 +86,8 @@ const state = {
   isProcessing: false,
   progressInterval: null,
   timerInterval: null,
+  activeJobPoller: null,
+  activeJobId: null,
   startTimeMs: 0,
   lastSessionId: null,
   transcriptSegments: [],
@@ -387,7 +391,10 @@ function finishProgress(successMsg, callback) {
   clearInterval(state.progressInterval);
   clearInterval(state.timerInterval);
   state.isProcessing = false;
-  
+  state.activeJobId = null;
+  state.activeJobPoller = null;
+  localStorage.removeItem('cinecut_active_job_id');
+
   const elapsedMs = Date.now() - state.startTimeMs;
   const totalSec = (elapsedMs / 1000).toFixed(1);
 
@@ -403,6 +410,41 @@ function finishProgress(successMsg, callback) {
     if (callback) callback();
   }, 400);
 }
+
+// ─── CANCEL AN IN-PROGRESS OPERATION ────────────────────────────────────────
+// Restores the "cancel operation" control the site used to have. Stops the
+// frontend from waiting on the job AND tells RunPod to actually cancel the
+// GPU job server-side (via DELETE /api/job-status/:id -> RunPod's /cancel
+// endpoint), so a cancelled separation/upscale/etc. really stops running
+// instead of quietly finishing in the background after being "hidden".
+async function cancelActiveJob() {
+  const jobId = state.activeJobId || localStorage.getItem('cinecut_active_job_id');
+  if (!jobId && !state.isProcessing) {
+    return; // nothing running to cancel
+  }
+
+  clearInterval(state.activeJobPoller);
+  clearInterval(state.progressInterval);
+  clearInterval(state.timerInterval);
+  state.isProcessing = false;
+  state.activeJobPoller = null;
+  state.activeJobId = null;
+  localStorage.removeItem('cinecut_active_job_id');
+
+  const progressBox = document.getElementById('modal-progress-container');
+  const txt = document.getElementById('modal-progress-txt');
+  if (txt) txt.innerText = '⛔ تم إلغاء العملية...';
+  setTimeout(() => { if (progressBox) progressBox.style.display = 'none'; }, 700);
+
+  if (jobId) {
+    try {
+      await fetch(`${GPU_TUNNEL}/api/job-status/${jobId}`, { method: 'DELETE', headers: TUNNEL_HEADERS });
+    } catch (e) {
+      // Best-effort — the frontend has already stopped waiting either way.
+    }
+  }
+}
+window.cancelActiveJob = cancelActiveJob;
 
 // ─── MAIN TOOL EXECUTION ROUTER ──────────────────────────────────────────────
 async function executeCurrentTool() {
@@ -514,6 +556,7 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
     if (data.job_id) {
       const jobId = data.job_id;
       localStorage.setItem('cinecut_active_job_id', jobId);
+      state.activeJobId = jobId;
       let elapsed = 0;
       const pollInterval = 1000;
       const maxWait = 10 * 60 * 1000;
@@ -543,6 +586,7 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
             }
           } catch(e){}
         }, pollInterval);
+        state.activeJobPoller = poller;
       });
 
       data = resultData;
@@ -616,10 +660,24 @@ function displayStemResults(vUrl, mUrl, gUrl, pUrl, dUrl) {
   const cleanVPlayer= document.getElementById('clean-result-video-player');
   const cleanCard   = document.getElementById('clean-video-result-card');
   const genericWrap = document.getElementById('generic-download-wrap');
+  const capBox      = document.getElementById('caption-styling-options-box');
+  const overlay     = document.getElementById('video-live-subtitle-overlay');
 
   if (genericWrap) genericWrap.style.display = 'none';
   if (resultBox)   resultBox.style.display   = 'block';
-  if (playersWrap) playersWrap.style.display = 'grid';
+  if (playersWrap) {
+    playersWrap.style.display = 'grid';
+    // A prior text-extraction run (displayTextResult) may have hidden every
+    // sibling card here except #clean-video-result-card via inline style, and
+    // left the caption overlay/style-picker glued on top of the video. This
+    // is a genuine separated-audio result, not a captions result, so undo
+    // ALL of that leftover state before showing the stem players.
+    Array.from(playersWrap.children).forEach(child => {
+      child.style.display = '';
+    });
+  }
+  if (capBox)  capBox.style.display  = 'none';
+  if (overlay) overlay.style.display = 'none';
 
   if (vPlayer && vUrl) {
     vPlayer.src = vUrl;
@@ -814,9 +872,19 @@ async function run4kUpscale() {
     if (data.job_id) {
       const jobId = data.job_id;
       localStorage.setItem('cinecut_active_job_id', jobId);
+      state.activeJobId = jobId;
       let elapsed = 0;
       const pollInterval = 1000;
-      const maxWait = 5 * 60 * 1000;
+      // Real AI-mode 4K/120FPS upscale (per-frame Real-ESRGAN + motion
+      // interpolation) is the single heaviest operation in the whole app —
+      // it previously had the SHORTEST timeout (5 min) of any operation,
+      // which meant the frontend would give up and show "انتهت مهلة
+      // المعالجة" / look like a failure on any clip that genuinely needed
+      // more time, even though the backend job was still legitimately
+      // working (especially after a cold worker start). Raised to match
+      // the other heavy GPU operations so real processing time is no
+      // longer mistaken for a failure.
+      const maxWait = 20 * 60 * 1000;
 
       await new Promise((resolve, reject) => {
         const poller = setInterval(async () => {
@@ -850,6 +918,7 @@ async function run4kUpscale() {
             }
           } catch (pollErr) {}
         }, pollInterval);
+        state.activeJobPoller = poller;
       });
     }
 
@@ -1218,6 +1287,8 @@ async function runBackgroundRemoval() {
 
     if (data.job_id) {
       const jobId = data.job_id;
+      localStorage.setItem('cinecut_active_job_id', jobId);
+      state.activeJobId = jobId;
       let elapsed = 0;
       const pollInterval = 1500;
       const maxWait = 20 * 60 * 1000;
@@ -1227,6 +1298,7 @@ async function runBackgroundRemoval() {
           elapsed += pollInterval;
           if (elapsed > maxWait) {
             clearInterval(poller);
+            localStorage.removeItem('cinecut_active_job_id');
             reject(new Error('انتهت مهلة معالجة الفيديو'));
             return;
           }
@@ -1236,9 +1308,11 @@ async function runBackgroundRemoval() {
             const statusData = await statusRes.json();
             if (statusData.status === 'done') {
               clearInterval(poller);
+              localStorage.removeItem('cinecut_active_job_id');
               resolve(statusData);
             } else if (statusData.status === 'error') {
               clearInterval(poller);
+              localStorage.removeItem('cinecut_active_job_id');
               reject(new Error(statusData.error || 'حدث خطأ أثناء إزالة الخلفية'));
             } else if (statusData.progress) {
               const fill = document.getElementById('modal-progress-fill');
@@ -1248,6 +1322,7 @@ async function runBackgroundRemoval() {
             }
           } catch (e) {}
         }, pollInterval);
+        state.activeJobPoller = poller;
       });
     }
 
