@@ -1287,7 +1287,15 @@ async function runBackgroundRemoval() {
   }
 
   const isImage = state.selectedFile.type.includes('image');
-  const mode = state.bgRemoveMode || 'transparent';
+  // Default to 'color' (not 'transparent'): alpha-channel WebM video does
+  // NOT render as transparent in a normal <video> tag or most players/editors
+  // (they just show the opaque RGB frame, which is IDENTICAL to the original
+  // since transparent-mode compositing keeps original RGB and only changes
+  // alpha) — this was making video background removal look like it did
+  // nothing at all. 'color' gives an immediately visible, unambiguous result
+  // for both image and video. Users who specifically want alpha transparency
+  // (e.g. for compositing in an editor) can still pick it explicitly.
+  const mode = state.bgRemoveMode || 'color';
   const color = document.getElementById('bgremove-color-input')?.value || state.bgRemoveColor || '#00ff00';
   const blurAmount = document.getElementById('bgremove-blur-slider')?.value || 25;
 
