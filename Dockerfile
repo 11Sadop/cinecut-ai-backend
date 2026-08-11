@@ -19,11 +19,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Install GPU-enabled PyTorch first (CUDA 12.1 wheels), including
+# Install GPU-enabled PyTorch first (CUDA 12.8 wheels), including
 # torchaudio in the SAME command — installing it separately via
 # requirements.txt would pull a mismatched/CPU build from PyPI's default
 # index and silently downgrade torch to satisfy it.
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# NOTE: cu121 wheels only ship kernels for sm_50..sm_90 (no Blackwell
+# support), which crashes with "no kernel image is available for
+# execution on the device" on RunPod GPUs like the RTX PRO 6000 Blackwell
+# (CUDA capability sm_120). cu128 wheels include Blackwell kernels while
+# still running fine on older Ampere/Ada/Hopper cards.
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
