@@ -92,6 +92,10 @@ def _detect_text_mask(pil_img: Image.Image) -> np.ndarray:
     mser.setMaxArea(int(0.02 * w * h))
     regions, _ = mser.detectRegions(gray)
 
+    # Track individual glyph boxes (not just a merged mask) so we can later
+    # require several of them clustered together before trusting a region as
+    # real text — a single stray blob is almost always texture/noise, not text.
+    glyph_boxes = []
     glyph_mask = np.zeros((h, w), dtype=np.uint8)
     for pts in regions:
         x, y, rw, rh = cv2.boundingRect(pts.reshape(-1, 1, 2))
@@ -102,6 +106,7 @@ def _detect_text_mask(pil_img: Image.Image) -> np.ndarray:
         # relative to the frame (captions/timestamps are never huge).
         if 0.1 < aspect < 4.0 and 6 <= rh <= max(10, int(h * 0.08)):
             cv2.rectangle(glyph_mask, (x, y), (x + rw, y + rh), 255, -1)
+            glyph_boxes.append((x + rw / 2.0, y + rh / 2.0))
 
     if not glyph_mask.any():
         return glyph_mask
@@ -113,14 +118,32 @@ def _detect_text_mask(pil_img: Image.Image) -> np.ndarray:
     merged = cv2.dilate(glyph_mask, kernel, iterations=1)
     merged = cv2.erode(merged, kernel, iterations=1)
 
-    # Only trust blocks that are wide enough to be several merged glyphs —
-    # a single isolated blob is more likely texture/noise, not real text.
+    # This heuristic previously ran unrestricted across the whole frame and
+    # was catching ordinary photo texture (fabric, hair, foliage, patterned
+    # backgrounds) as "text", force-keeping those bits opaque and making
+    # regular background removal noticeably worse. Burned-in captions,
+    # timestamps and watermarks are near-universally placed in a border
+    # band (top/bottom strip or corners), never smack in the middle of the
+    # frame where the actual subject usually is — so we now only trust a
+    # candidate block if (a) it sits in that border band, AND (b) it's made
+    # of several clustered glyphs (a real word/line), not one lone blob.
+    top_band = h * 0.22
+    bottom_band = h * 0.78
+
     contours, _ = cv2.findContours(merged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     clean_mask = np.zeros_like(merged)
     for c in contours:
         x, y, rw, rh = cv2.boundingRect(c)
-        if rw >= 30 and rh >= 6:
-            cv2.rectangle(clean_mask, (x, y), (x + rw, y + rh), 255, -1)
+        if rw < 30 or rh < 6:
+            continue
+        cy = y + rh / 2.0
+        in_border_band = cy < top_band or cy > bottom_band
+        if not in_border_band:
+            continue
+        glyph_count = sum(1 for (gx, gy) in glyph_boxes if x <= gx <= x + rw and y <= gy <= y + rh)
+        if glyph_count < 3:
+            continue
+        cv2.rectangle(clean_mask, (x, y), (x + rw, y + rh), 255, -1)
     return clean_mask
 
 
