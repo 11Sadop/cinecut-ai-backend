@@ -26,17 +26,48 @@ let _blobUploadFn = null;
  * Vercel's 4.5MB serverless function body limit entirely — the bytes never
  * pass through any of our /api/* routes). Returns the resulting public URL,
  * which is then sent to the job-submission routes as a small JSON string
- * instead of the raw file. */
-async function uploadToBlob(file, filename) {
+ * instead of the raw file.
+ *
+ * Retries the WHOLE upload up to 3 times with a short backoff before giving
+ * up. The @vercel/blob client already retries individual chunk requests
+ * internally, but on a flaky connection (common with large 4K source
+ * videos for the upscale tool) it can still exhaust its own retries and
+ * throw "Request failed after retries. Please try again." — previously
+ * that bubbled straight up as a hard failure on the very first hiccup, with
+ * no second chance. This wraps the same call in an outer retry loop so a
+ * single dropped connection doesn't kill the whole job. */
+async function uploadToBlob(file, filename, _onRetry) {
   if (!_blobUploadFn) {
     const mod = await import('https://esm.sh/@vercel/blob@0.27.1/client');
     _blobUploadFn = mod.upload;
   }
-  const blob = await _blobUploadFn(filename || file.name || 'upload.bin', file, {
-    access: 'public',
-    handleUploadUrl: '/api/blob-upload',
-  });
-  return blob.url;
+
+  const maxAttempts = 3;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const blob = await _blobUploadFn(filename || file.name || 'upload.bin', file, {
+        access: 'public',
+        handleUploadUrl: '/api/blob-upload',
+      });
+      return blob.url;
+    } catch (e) {
+      lastErr = e;
+      console.warn(`uploadToBlob attempt ${attempt}/${maxAttempts} failed:`, e);
+      if (attempt < maxAttempts) {
+        if (typeof _onRetry === 'function') {
+          try { _onRetry(attempt, maxAttempts); } catch (_) {}
+        }
+        await new Promise(r => setTimeout(r, attempt * 1500));
+      }
+    }
+  }
+  const friendly = new Error(
+    `تعذر رفع الملف إلى السيرفر بعد ${maxAttempts} محاولات (${lastErr?.message || 'مشكلة اتصال'}). ` +
+    `يرجى التأكد من ثبات الإنترنت والمحاولة مرة أخرى، أو تجربة ملف أصغر.`
+  );
+  friendly.cause = lastErr;
+  throw friendly;
 }
 
 /** Polls /api/job-status/{jobId} until RunPod finishes the job (or errors/
@@ -854,7 +885,10 @@ async function run4kUpscale() {
       });
     } else if (state.selectedFile) {
       const fname = state.selectedFile.name || 'video.mp4';
-      const fileUrl = await uploadToBlob(state.selectedFile, fname);
+      const fileUrl = await uploadToBlob(state.selectedFile, fname, (attempt, max) => {
+        const txt = document.getElementById('modal-progress-txt');
+        if (txt) txt.innerText = `⚠️ انقطع الاتصال أثناء الرفع، جاري إعادة المحاولة (${attempt}/${max})...`;
+      });
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
