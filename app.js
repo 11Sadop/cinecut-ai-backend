@@ -1086,11 +1086,42 @@ function displayTextResult(text) {
   const textEl     = document.getElementById('generic-text-result');
   const capBox     = document.getElementById('caption-styling-options-box');
   const overlay    = document.getElementById('video-live-subtitle-overlay');
+  const playersWrap= document.getElementById('stem-players-wrap');
+  const cleanCard  = document.getElementById('clean-video-result-card');
+  const cleanVPlayer = document.getElementById('clean-result-video-player');
 
   if (resultBox)   resultBox.style.display   = 'block';
   if (genericWrap) genericWrap.style.display = 'block';
   if (sttBox)      sttBox.style.display      = 'block';
   if (textEl)      textEl.value              = text;
+
+  // BUG FIX: caption-styling-options-box (the neon/karaoke/tiktok_pop/etc.
+  // style picker) lives inside stem-players-wrap > clean-video-result-card
+  // — a DOM structure originally built for the audio-separation tool's
+  // result screen. Setting capBox.style.display='block' alone did nothing
+  // visible here because its ANCESTOR stem-players-wrap was still
+  // display:none (only displayStemResults(), called by the separate
+  // audio-separation flow, ever un-hides it) — so after a successful
+  // transcription the style picker silently never appeared. Reveal that
+  // same wrapper here too, hiding the audio-only stem-player cards (they
+  // don't apply to a text/transcription result) and keeping only the
+  // video-preview + caption-style card visible.
+  if (playersWrap) {
+    playersWrap.style.display = 'grid';
+    Array.from(playersWrap.children).forEach(child => {
+      if (child.id !== 'clean-video-result-card') child.style.display = 'none';
+    });
+  }
+  if (cleanCard) cleanCard.style.display = 'block';
+  if (cleanVPlayer) {
+    if (state.previewUrl) {
+      cleanVPlayer.src = state.previewUrl;
+      cleanVPlayer.load();
+      cleanVPlayer.style.display = 'block';
+    } else {
+      cleanVPlayer.style.display = 'none';
+    }
+  }
   if (capBox)      capBox.style.display      = 'block';
   if (overlay)     overlay.style.display     = 'flex';
 
