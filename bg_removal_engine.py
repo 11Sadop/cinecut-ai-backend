@@ -158,7 +158,23 @@ def _matte_foreground(pil_img: Image.Image, protect_text: bool = True) -> Image.
     session = _get_session()
     buf = io.BytesIO()
     pil_img.convert("RGB").save(buf, format="PNG")
-    out_bytes = remove(buf.getvalue(), session=session) if session else remove(buf.getvalue())
+    # Alpha-matting refinement: rembg's raw network output has jagged /
+    # haloed cutout edges. Running its built-in trimap + closed-form matting
+    # pass (needs the "pymatting" package) produces soft, anti-aliased
+    # edges instead. This single function feeds both image and video
+    # background removal (video calls it per-frame), so this one fix
+    # improves both.
+    remove_kwargs = dict(
+        alpha_matting=True,
+        alpha_matting_foreground_threshold=270,
+        alpha_matting_background_threshold=20,
+        alpha_matting_erode_size=11,
+    )
+    try:
+        out_bytes = remove(buf.getvalue(), session=session, **remove_kwargs) if session else remove(buf.getvalue(), **remove_kwargs)
+    except Exception as e_am:
+        print(f"alpha-matting refinement failed ({e_am}), using plain matting output")
+        out_bytes = remove(buf.getvalue(), session=session) if session else remove(buf.getvalue())
     rgba = Image.open(io.BytesIO(out_bytes)).convert("RGBA")
 
     if protect_text:
