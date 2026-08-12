@@ -150,7 +150,7 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
     cmd = [
         FFMPEG_PATH, "-y", "-i", input_path,
         "-vf", vf_str,
-        "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "16", "-b:v", "35M", "-profile:v", "main", "-level", "4.1",
+        "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", "16M", "-maxrate", "20M", "-bufsize", "32M", "-profile:v", "main", "-level", "4.1",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
@@ -164,7 +164,7 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
     cmd_cpu = [
         FFMPEG_PATH, "-y", "-i", input_path,
         "-vf", vf_str,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-profile:v", "main", "-level", "4.1",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-profile:v", "main", "-level", "4.1",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
@@ -231,9 +231,15 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     vf_str = f"{minterp},{_color_eq_filter(color_mode)}"
 
     if use_nvenc:
-        venc_args = ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "16", "-b:v", "35M"]
+        # Bitrate cap lowered 35M -> 16M (with a 20M ceiling for complex
+        # motion) after a real user's AI-upscaled 4K/120fps clip produced a
+        # 977.8MB file that failed to upload to Vercel Blob even with
+        # multipart+retry. 16 Mbps is still well above typical commercial
+        # 4K streaming bitrates (~15-25 Mbps) so visual quality loss is
+        # negligible, but output size (and upload time/risk) roughly halves.
+        venc_args = ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", "16M", "-maxrate", "20M", "-bufsize", "32M"]
     else:
-        venc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18"]
+        venc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
 
     cmd = [
         FFMPEG_PATH, "-y",
