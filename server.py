@@ -351,6 +351,16 @@ def _sync_transcribe(raw_bytes: bytes, filename: str, language: str = "ar"):
                 temperature=0.0,
                 task="transcribe",
                 vad_filter=True,
+                # Default VAD silence gap is 2000ms — way too long for fast,
+                # informal Gulf-dialect speech where natural pauses between
+                # phrases are much shorter, so consecutive sentences/phrases
+                # were being merged into one continuous run-on segment
+                # (reported bug: transcript "يلصق الكلام" — words/phrases
+                # stuck together with no break). Shortening the silence gap
+                # to 350ms lets the VAD split on the real, shorter pauses
+                # actual conversational speech has, producing properly
+                # separated segments instead of one long fused block.
+                vad_parameters=dict(min_silence_duration_ms=350, speech_pad_ms=200),
                 condition_on_previous_text=True,
                 initial_prompt=initial_prompt,
                 word_timestamps=True
@@ -637,9 +647,26 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # entire spectrum simultaneously, so this fraction spikes
                     # sharply right at the hit — that's the signature we gate
                     # on, independent of the per-bin mask above.
+                    # NOTE: this used to be a HARD binary gate
+                    # (frame_gate = broadband_frac < 0.55 as 0.0/1.0), which
+                    # flips fully on/off between adjacent overlapping STFT
+                    # frames (75% overlap here — hop is only ~11.6ms). That
+                    # abrupt on/off switching is exactly what produced the
+                    # audible clicking/stutter ("تقطيع") reported after the
+                    # last round — muting a whole frame outright, then not
+                    # muting the next, is a hard discontinuity in the
+                    # overlap-add reconstruction. Replaced with a smooth
+                    # sigmoid transition (same 0.5 center, so a real drum hit
+                    # still gets gated down hard) PLUS a short 5-frame
+                    # moving-average smoothing pass, so the same drum-bleed
+                    # suppression happens but the gain ramps instead of
+                    # switching — removing the click while keeping the mute.
                     instrumental_dominant = (mag_i > (0.5 * mag_v + 1e-6))
                     broadband_frac = np.mean(instrumental_dominant, axis=0)
-                    frame_gate = (broadband_frac < 0.55).astype(np.float32)
+                    frame_gate = 1.0 / (1.0 + np.exp(22.0 * (broadband_frac - 0.5)))
+                    if frame_gate.shape[0] >= 5:
+                        kernel = np.ones(5, dtype=np.float32) / 5.0
+                        frame_gate = np.convolve(frame_gate, kernel, mode='same')
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
                     _, clean_ch = scipy.signal.istft(Zv_clean, fs=sr_v, nperseg=2048, noverlap=1536)
