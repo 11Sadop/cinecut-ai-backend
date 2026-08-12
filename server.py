@@ -401,7 +401,18 @@ def _sync_transcribe(raw_bytes: bytes, filename: str, language: str = "ar"):
                 # hallucinated filler phrase, not real transcribed speech.
                 no_speech_p = float(getattr(s, "no_speech_prob", 0.0) or 0.0)
                 avg_logprob = float(getattr(s, "avg_logprob", 0.0) or 0.0)
-                if no_speech_p > 0.6 and avg_logprob < -0.5:
+                # BUG FIX (reported: transcript coming back incomplete /
+                # missing chunks). The original thresholds here were tuned
+                # only against a hallucination example and turned out too
+                # aggressive for real speech recorded with background
+                # music/noise or a quieter mic -- that kind of audio
+                # genuinely pushes no_speech_prob up and avg_logprob down
+                # even though a person IS talking, so real segments were
+                # being silently dropped, not just hallucinated ones.
+                # Tightened so only near-certain silence hallucinations get
+                # filtered, trading a few missed hallucinations for not
+                # losing genuine speech.
+                if no_speech_p > 0.85 and avg_logprob < -0.9:
                     continue
                 low_raw = raw_txt.lower()
                 if any(p in low_raw or p in raw_txt for p in _HALLUCINATION_PATTERNS):
