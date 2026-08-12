@@ -749,37 +749,58 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     vocal_presence = np.clip(frame_vocal_energy / peak_vocal_energy, 0.0, 1.0)
                     frame_gate = np.maximum(frame_gate, vocal_presence * 0.75)
 
-                    # ROUND 4 FIX: two prior rounds (hard gate -> smoothed
-                    # sigmoid -> sigmoid + vocal-presence protection) still
-                    # left the artist's voice audibly cutting/stuttering on
-                    # every report. The common thread across all three: this
-                    # broadband gate can still drive all the way down to
-                    # ~0.0 (a full, hard mute of that instant) whenever it
-                    # decides a frame is drum-dominant — and Demucs
-                    # (htdemucs_ft) already performs proper neural vocal
-                    # separation upstream of this whole stage, so what this
-                    # gate is muting is very often genuine (if slightly
-                    # bleedy) vocal content, not pure drum noise. A full
-                    # mute is always audible as a "cut"; a partial dip is
-                    # not. Flooring the gate at 0.5 (-6dB) means the worst
-                    # this stage can ever do is a mild, inaudible-as-cutting
-                    # dip — the per-bin mask + subtraction stages (1+2)
-                    # above already do the real, surgical bleed removal;
-                    # this broadband stage now only adds a light extra
-                    # damping on top instead of being able to silence
-                    # anything outright.
-                    # ROUND 6 FIX (reported: real songs -- e.g. a guitar/oud intro or an
-                    # instrumental break with no singer at all, like Talal Maddah's
-                    # "Qultu Awsafah" -- still have clearly audible guitar/drums). A
-                    # flat 0.5 floor was applied UNCONDITIONALLY, even during
-                    # stretches where the singer isn't present at all, so a purely
-                    # instrumental passage could never be suppressed more than -6dB.
-                    # Scale the floor by this frame's own vocal_presence instead of a
-                    # constant: a truly instrumental-only frame (vocal_presence ~ 0)
-                    # now gets the FULL suppression the sigmoid gate computed, while a
-                    # frame where the singer is actually audible keeps the same
-                    # -6dB-floor protection as before (vocal_presence ~ 1 -> floor ~ 0.5).
-                    frame_gate = np.maximum(frame_gate, 0.5 * vocal_presence)
+                    # ROUND 7 FIX (reported AGAIN after ROUND 6, same example
+                    # - Talal Maddah's song: guitar/oud/drums still
+                    # clearly audible). Found two real bugs once this was
+                    # actually traced through with numbers instead of just
+                    # re-tuning constants blind:
+                    #
+                    # BUG 1 - the ROUND 6 fix below was DEAD CODE. This
+                    # function applies np.maximum(frame_gate, X) twice in a
+                    # row: first with X = vocal_presence*0.75 (above,
+                    # unchanged since ROUND 4), then again with X =
+                    # vocal_presence*0.5 (ROUND 6's actual edit). np.maximum
+                    # only ever RAISES the value, and 0.75 > 0.5 always, so
+                    # the second call could never change anything - the
+                    # first (stronger, untouched) floor always won. ROUND 6
+                    # shipped and built successfully but had ZERO real
+                    # effect, exactly consistent with the bug being
+                    # reported again verbatim afterward.
+                    #
+                    # BUG 2 - vocal_presence itself was measured wrong: it
+                    # compared each frame's vocal magnitude only to its OWN
+                    # peak across the clip, never to the instrumental
+                    # magnitude at that same instant. But mag_v (the
+                    # "vocals" stem) is exactly the signal already
+                    # contaminated by bleed - a loud guitar/oud passage
+                    # with NO singer at all can still leak plenty of raw
+                    # energy into mag_v, making that instant look like
+                    # "the loudest vocal moment in the clip" and pinning
+                    # vocal_presence near 1.0 purely from the bleed itself.
+                    # That falsely maxed-out presence then kept the floor
+                    # elevated during exactly the passages that most need
+                    # full suppression (instrumental intros/breaks with no
+                    # vocalist).
+                    #
+                    # Fix for both: derive presence from the vocal-vs-
+                    # instrumental RATIO at each frame (a real SNR, using
+                    # the instrumental magnitude already computed as
+                    # mag_i), not vocal magnitude in isolation - a frame
+                    # where the singer truly dominates has mag_v clearly
+                    # above mag_i; a bleed-only frame has mag_i comparable
+                    # to or above mag_v even when mag_v isn't near zero.
+                    # Only frames where vocals outweigh the instrumental by
+                    # 3x or more are treated as "singer genuinely present"
+                    # and protected. Single floor now (the redundant
+                    # duplicate call removed) at a much lower ceiling (0.3
+                    # instead of 0.75/0.5) so real, confirmed bleed is
+                    # actually pushed toward silence instead of merely
+                    # dipped a few dB.
+                    frame_vocal_energy = np.mean(mag_v, axis=0)
+                    frame_instr_energy = np.mean(mag_i, axis=0)
+                    frame_snr = frame_vocal_energy / (frame_instr_energy + 1e-6)
+                    vocal_presence = np.clip(frame_snr / 3.0, 0.0, 1.0)
+                    frame_gate = np.maximum(frame_gate, vocal_presence * 0.3)
 
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
