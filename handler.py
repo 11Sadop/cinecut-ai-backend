@@ -416,6 +416,87 @@ def _op_tts(job_input):
     return {"status": "success", "session_id": session_id, "result_url": url, "voice": voice}
 
 
+_LAST_CLEANUP_TS = 0
+
+
+def _cleanup_old_blobs(prefix, max_age_hours, max_items=2000):
+    """Best-effort housekeeping: deletes blobs under `prefix` older than
+    `max_age_hours`.
+
+    ROOT CAUSE fix for the recurring upload-storage failures that broke BOTH
+    video upscale uploads AND simple image background-removal uploads at the
+    same time: every job's output was uploaded to Vercel Blob but NEVER
+    deleted afterward, so the store just filled up permanently -- once it
+    hit the Hobby plan's 1GB cap, every new upload started failing outright,
+    regardless of that upload's own size. This function reclaims space
+    automatically as the app is used (called at the start of every job --
+    see _maybe_cleanup_old_blobs), so no manual cleanup step is ever
+    required again.
+
+    Silent/best-effort: a cleanup hiccup must never break the user's actual
+    job, so every exception here is swallowed after a console warning.
+    """
+    if not BLOB_AVAILABLE:
+        return 0
+    try:
+        import datetime as _dt
+
+        cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(hours=max_age_hours)
+        cursor = None
+        checked = 0
+        deleted = 0
+        while checked < max_items:
+            opts = {"prefix": prefix, "limit": 1000}
+            if cursor:
+                opts["cursor"] = cursor
+            page = vercel_blob.list(opts)
+            blobs = page.get("blobs", []) if isinstance(page, dict) else []
+            stale_urls = []
+            for b in blobs:
+                checked += 1
+                uploaded_at = b.get("uploadedAt") or b.get("uploaded_at")
+                if not uploaded_at:
+                    continue
+                try:
+                    ts = _dt.datetime.fromisoformat(str(uploaded_at).replace("Z", "+00:00"))
+                except Exception:
+                    continue
+                if ts < cutoff:
+                    url = b.get("url")
+                    if url:
+                        stale_urls.append(url)
+            if stale_urls:
+                try:
+                    vercel_blob.delete(stale_urls)
+                    deleted += len(stale_urls)
+                except Exception as e_del:
+                    print(f"blob cleanup: failed deleting a batch under {prefix}: {e_del}")
+            has_more = page.get("hasMore") if isinstance(page, dict) else False
+            if not has_more:
+                break
+            cursor = page.get("cursor")
+        if deleted:
+            print(f"blob cleanup: removed {deleted} stale file(s) under '{prefix}' (older than {max_age_hours}h)")
+        return deleted
+    except Exception as e:
+        print(f"blob cleanup failed for prefix '{prefix}' (non-fatal): {e}")
+        return 0
+
+
+def _maybe_cleanup_old_blobs():
+    """Throttled wrapper: runs the actual cleanup at most once every 10
+    minutes per warm worker (module-level timestamp resets on cold start),
+    so a busy worker handling many jobs back-to-back doesn't re-list the
+    whole store on every single request."""
+    global _LAST_CLEANUP_TS
+    now = time.time()
+    if now - _LAST_CLEANUP_TS < 600:
+        return
+    _LAST_CLEANUP_TS = now
+    _cleanup_old_blobs("results/", max_age_hours=6)
+    _cleanup_old_blobs("logs/", max_age_hours=24 * 60)
+
+
 def _log_operation(operation, status, started_at, ended_at, job_input, result, error=None):
     """Persists one small JSON record per job to Vercel Blob under logs/ --
     this is what powers the separate, owner-only ops/cost dashboard.
@@ -492,6 +573,11 @@ def handler(job):
             "status": "error",
             "error": f"Unknown or missing 'operation'. Expected one of: {list(_OPERATIONS.keys())}"
         }
+
+    try:
+        _maybe_cleanup_old_blobs()
+    except Exception as e_cleanup:
+        print(f"pre-job blob cleanup skipped (non-fatal): {e_cleanup}")
 
     started_at = time.time() * 1000
     try:
