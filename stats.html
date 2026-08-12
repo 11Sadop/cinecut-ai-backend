@@ -146,7 +146,7 @@
 
     function fmtSar(sar) {
       if (sar === null || sar === undefined || !isFinite(sar)) return '—';
-      if (sar < 0.01) return '< 0.01 ريال';
+      if (sar > 0 && sar < 0.01) return '< 0.01 ريال';
       return sar.toFixed(2) + ' ريال';
     }
 
