@@ -127,7 +127,7 @@ def _get_duration_sec(path):
         return None
 
 
-def _adaptive_video_kbps(duration_sec, target_max_mb=400, floor_kbps=6000, ceiling_kbps=20000, audio_kbps=192):
+def _adaptive_video_kbps(duration_sec, target_max_mb=320, floor_kbps=6000, ceiling_kbps=15000, audio_kbps=192):
     """
     ROOT CAUSE of repeated upscale-upload failures even after the earlier
     35M -> 16-20M fixed bitrate cap: a fixed Mbps number only bounds size
@@ -191,7 +191,7 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
     cmd = [
         FFMPEG_PATH, "-y", "-i", input_path,
         "-vf", vf_str,
-        "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main", "-level", "4.1",
+        "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main", "-level", "4.1",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
@@ -205,7 +205,7 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
     cmd_cpu = [
         FFMPEG_PATH, "-y", "-i", input_path,
         "-vf", vf_str,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-profile:v", "main", "-level", "4.1",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main", "-level", "4.1",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
@@ -278,9 +278,9 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     bufsize = f"{int(kbps * 2)}k"
 
     if use_nvenc:
-        venc_args = ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize]
+        venc_args = ["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize]
     else:
-        venc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize]
+        venc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-maxrate", maxrate, "-bufsize", bufsize]
 
     cmd = [
         FFMPEG_PATH, "-y",
