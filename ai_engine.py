@@ -113,6 +113,41 @@ def get_video_info(video_path):
     return 1920, 1080, 30.0
 
 
+def _get_duration_sec(path):
+    """Source-clip duration via ffprobe's container-level 'format.duration'
+    (works regardless of codec/frame-count quirks). Returns None on failure
+    so callers can fall back to a safe default."""
+    try:
+        cmd = [FFPROBE_PATH, "-v", "quiet", "-print_format", "json", "-show_format", path]
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode()
+        info = json.loads(out)
+        dur = float(info.get("format", {}).get("duration", 0) or 0)
+        return dur if dur > 0 else None
+    except Exception:
+        return None
+
+
+def _adaptive_video_kbps(duration_sec, target_max_mb=400, floor_kbps=6000, ceiling_kbps=20000, audio_kbps=192):
+    """
+    ROOT CAUSE of repeated upscale-upload failures even after the earlier
+    35M -> 16-20M fixed bitrate cap: a fixed Mbps number only bounds size
+    PER SECOND -- total file size is bitrate x duration, so a long enough
+    clip (a real case hit 1005.9MB) still blows past whatever Vercel Blob's
+    upload path can reliably handle. Fix: pick the video bitrate FROM the
+    clip's own duration so every output targets roughly the same final
+    SIZE (~400MB) regardless of source length, instead of a duration-blind
+    fixed Mbps number. Short clips still get the full quality ceiling;
+    only clips long enough to risk a huge file get throttled down (with a
+    quality floor so it never drops below decent quality).
+    """
+    if not duration_sec or duration_sec <= 0:
+        return ceiling_kbps
+    total_kbits_budget = target_max_mb * 8 * 1024
+    video_kbits_budget = total_kbits_budget - (audio_kbps * duration_sec)
+    bitrate = video_kbits_budget / duration_sec
+    return int(max(floor_kbps, min(ceiling_kbps, bitrate)))
+
+
 def _target_dims(resolution):
     if resolution in ["4k", "2160"]:
         return 3840, 2160
@@ -147,10 +182,16 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
         f"{sharpen},fps={target_fps},{_color_eq_filter(color_mode)}"
     )
 
+    dur_sec = _get_duration_sec(input_path)
+    kbps = _adaptive_video_kbps(dur_sec)
+    b_v = f"{kbps}k"
+    maxrate = f"{int(kbps * 1.25)}k"
+    bufsize = f"{int(kbps * 2)}k"
+
     cmd = [
         FFMPEG_PATH, "-y", "-i", input_path,
         "-vf", vf_str,
-        "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", "16M", "-maxrate", "20M", "-bufsize", "32M", "-profile:v", "main", "-level", "4.1",
+        "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main", "-level", "4.1",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
@@ -230,16 +271,16 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=aobmc:vsbmc=1"
     vf_str = f"{minterp},{_color_eq_filter(color_mode)}"
 
+    duration_sec = (total_frames / src_fps) if (total_frames and src_fps) else None
+    kbps = _adaptive_video_kbps(duration_sec)
+    b_v = f"{kbps}k"
+    maxrate = f"{int(kbps * 1.25)}k"
+    bufsize = f"{int(kbps * 2)}k"
+
     if use_nvenc:
-        # Bitrate cap lowered 35M -> 16M (with a 20M ceiling for complex
-        # motion) after a real user's AI-upscaled 4K/120fps clip produced a
-        # 977.8MB file that failed to upload to Vercel Blob even with
-        # multipart+retry. 16 Mbps is still well above typical commercial
-        # 4K streaming bitrates (~15-25 Mbps) so visual quality loss is
-        # negligible, but output size (and upload time/risk) roughly halves.
-        venc_args = ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", "16M", "-maxrate", "20M", "-bufsize", "32M"]
+        venc_args = ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize]
     else:
-        venc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
+        venc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize]
 
     cmd = [
         FFMPEG_PATH, "-y",
