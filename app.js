@@ -1132,19 +1132,60 @@ async function runTextToSpeech() {
   if (!text) { alert('يرجى إدخال النص أولاً!'); return; }
 
   state.isProcessing = true;
-  startProgress(6, 'جاري توليد التعليق الصوتي...');
+  // This used to ALWAYS use the browser's built-in speechSynthesis and
+  // completely ignore which of the 8 distinct voice options (Hamed,
+  // Hamdan, Shakir, Jamal...) was picked — it only ever set a generic
+  // lang="ar-SA", so every "different" voice sounded identical (reported
+  // bug: "حاط لي كلها اصوات تتشابه"). The real, genuinely different neural
+  // voices (edge-tts — free Microsoft Edge TTS, no API key) were already
+  // built server-side (/api/tts in server.py) but were never wired into the
+  // actual production RunPod job path, so they were unreachable. Now calls
+  // the real engine through the same job pipeline as every other tool, and
+  // only falls back to the old browser voice if that's truly unreachable.
+  startProgress(20, 'جاري توليد التعليق الصوتي بصوت طبيعي بالذكاء الاصطناعي...');
 
-  const isEnglish = voice.startsWith('en');
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang  = isEnglish ? 'en-US' : 'ar-SA';
-    utter.pitch = isEnglish ? 1.0 : 0.82;
-    utter.rate  = 0.90;
-    window.speechSynthesis.speak(utter);
-    setTimeout(() => finishProgress('تم تشغيل التعليق الصوتي بنجاح!', () => {}), 600);
-  } else {
-    alert('متصفحك لا يدعم محرك الكلام.');
+  try {
+    const res = await fetch(`${GPU_TUNNEL}/api/job`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+      body: JSON.stringify({ operation: 'tts', text, voice })
+    });
+    if (!res.ok) throw new Error(`خطأ السيرفر ${res.status}`);
+    let data = await res.json();
+    if (data.job_id) {
+      data = await pollJobStatus(data.job_id, 2 * 60 * 1000);
+    }
+    if (data.error) throw new Error(data.error);
+    if (!data.result_url) throw new Error('تعذر الحصول على رابط الصوت الناتج');
+
+    const audioUrl = resolveMediaUrl(data.result_url);
+    const rRes = await fetch(audioUrl, { headers: TUNNEL_HEADERS });
+    const rBlob = await rRes.blob();
+    const blobUrl = URL.createObjectURL(rBlob);
+
+    state.processedMediaUrl = blobUrl;
+    finishProgress('✅ تم توليد التعليق الصوتي بصوت طبيعي بالذكاء الاصطناعي!', () => {
+      renderLiveMediaPreview(blobUrl, 'audio');
+    });
+  } catch (e) {
+    console.error('TTS error:', e);
+    clearInterval(state.progressInterval);
+    clearInterval(state.timerInterval);
+    // Degraded fallback ONLY if the real AI voice engine is unreachable —
+    // still better than a hard failure, but note this browser voice does
+    // NOT vary by the selected option (that's the whole bug being fixed).
+    if (window.speechSynthesis) {
+      const isEnglish = voice.startsWith('en');
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang  = isEnglish ? 'en-US' : 'ar-SA';
+      utter.pitch = isEnglish ? 1.0 : 0.82;
+      utter.rate  = 0.90;
+      window.speechSynthesis.speak(utter);
+      finishProgress('⚠️ تعذر الوصول لمحرك الصوت بالذكاء الاصطناعي، تم التشغيل بصوت المتصفح الاحتياطي المؤقت.', () => {});
+    } else {
+      alert(`⚠️ تعذر توليد الصوت: ${e.message}`);
+    }
   }
   state.isProcessing = false;
 }
