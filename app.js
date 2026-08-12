@@ -104,6 +104,217 @@ function pollJobStatus(jobId, maxWaitMs = 5 * 60 * 1000, pollIntervalMs = 1500) 
   });
 }
 
+// ─── OPERATIONS STATS / LIVE DASHBOARD ────────────────────────────────
+// Persists a rolling log of every GPU operation (separation, upscale, STT,
+// TTS, background removal) to localStorage so the stats page can show what
+// is running right now (with elapsed time) plus a detailed history: clip
+// duration processed, real processing time, success/failure, and aggregate
+// stats (total clip-minutes, success rate, average processing time).
+// Client-side only (localStorage) since this is a single-user app.
+const OPS_LOG_KEY = "cinecut_ops_log";
+const OPS_LOG_MAX = 300;
+
+const OP_LABELS = {
+  separate_audio: 'فصل الموسيقى عن الصوت',
+  stem_from_url:  'فصل الموسيقى (من رابط)',
+  upscale:        'رفع الجودة 4K',
+  upscale_url:    'رفع الجودة 4K (من رابط)',
+  transcribe:     'استخراج النص',
+  transcribe_url: 'استخراج النص (من رابط)',
+  tts:            'تحويل النص إلى صوت',
+  remove_background_image: 'إزالة خلفية (صورة)',
+  remove_background_video: 'إزالة خلفية (فيديو)',
+};
+
+function _loadOpsLog() {
+  try {
+    const raw = localStorage.getItem(OPS_LOG_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function _saveOpsLog(log) {
+  try {
+    if (log.length > OPS_LOG_MAX) log = log.slice(log.length - OPS_LOG_MAX);
+    localStorage.setItem(OPS_LOG_KEY, JSON.stringify(log));
+  } catch (e) {}
+}
+
+function getMediaDurationSeconds(fileOrUrl) {
+  return new Promise((resolve) => {
+    try {
+      if (!fileOrUrl) { resolve(null); return; }
+      const el = document.createElement('video');
+      el.preload = 'metadata';
+      el.muted = true;
+      let objectUrlToRevoke = null;
+      let settled = false;
+      const done = (val) => {
+        if (settled) return;
+        settled = true;
+        if (objectUrlToRevoke) { try { URL.revokeObjectURL(objectUrlToRevoke); } catch (e) {} }
+        resolve(val);
+      };
+      el.onloadedmetadata = () => done(isFinite(el.duration) ? el.duration : null);
+      el.onerror = () => done(null);
+      setTimeout(() => done(null), 8000);
+
+      if (fileOrUrl instanceof Blob) {
+        const u = URL.createObjectURL(fileOrUrl);
+        objectUrlToRevoke = u;
+        el.src = u;
+      } else if (typeof fileOrUrl === 'string') {
+        el.crossOrigin = 'anonymous';
+        el.src = fileOrUrl;
+      } else {
+        done(null);
+      }
+    } catch (e) { resolve(null); }
+  });
+}
+
+function opLogStart(operation, clipDurationSec, extra) {
+  const log = _loadOpsLog();
+  const id = `op_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  log.push(Object.assign({
+    id,
+    operation,
+    label: OP_LABELS[operation] || operation,
+    startedAt: Date.now(),
+    endedAt: null,
+    status: 'running',
+    clipDurationSec: (typeof clipDurationSec === 'number' && isFinite(clipDurationSec)) ? clipDurationSec : null,
+    error: null,
+  }, extra || {}));
+  _saveOpsLog(log);
+  _refreshStatsIfOpen();
+  return id;
+}
+
+function opLogEnd(id, status, extra) {
+  if (!id) return;
+  const log = _loadOpsLog();
+  const idx = log.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  log[idx] = Object.assign(log[idx], { status: status || 'done', endedAt: Date.now() }, extra || {});
+  _saveOpsLog(log);
+  _refreshStatsIfOpen();
+}
+
+let statsRefreshInterval = null;
+function _refreshStatsIfOpen() {
+  const overlay = document.getElementById('stats-overlay');
+  if (overlay && overlay.style.display !== 'none') renderStatsPage();
+}
+
+function fmtOpDuration(sec) {
+  if (sec === null || sec === undefined || !isFinite(sec)) return '—';
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function fmtOpDate(ts) {
+  try {
+    return new Date(ts).toLocaleString('ar-SA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return new Date(ts).toLocaleString(); }
+}
+
+function renderStatsPage() {
+  const log = _loadOpsLog().slice().reverse();
+  const running = log.filter(e => e.status === 'running');
+  const finished = log.filter(e => e.status !== 'running');
+
+  const runWrap = document.getElementById('stats-running-list');
+  if (runWrap) {
+    if (running.length === 0) {
+      runWrap.innerHTML = '<div class="stats-empty-msg">لا توجد عمليات جارية حالياً</div>';
+    } else {
+      runWrap.innerHTML = running.map(e => {
+        const elapsedSec = (Date.now() - e.startedAt) / 1000;
+        const durLabel = e.clipDurationSec != null ? `مدة المقطع: ${fmtOpDuration(e.clipDurationSec)} · ` : '';
+        return `
+          <div class="stats-running-item">
+            <span class="stats-pulse-dot"></span>
+            <div class="stats-running-info">
+              <div class="stats-running-label">${e.label}</div>
+              <div class="stats-running-sub">${durLabel}جارية منذ ${fmtOpDuration(elapsedSec)}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  const doneEntries = finished.filter(e => e.status === 'done');
+  const errorEntries = finished.filter(e => e.status === 'error');
+  const totalOps = finished.length;
+  const totalClipMinutes = doneEntries.reduce((sum, e) => sum + (e.clipDurationSec || 0), 0) / 60;
+  const successRate = totalOps > 0 ? Math.round((doneEntries.length / totalOps) * 100) : 0;
+  const avgProcSec = doneEntries.length
+    ? doneEntries.reduce((sum, e) => sum + (((e.endedAt || e.startedAt) - e.startedAt) / 1000), 0) / doneEntries.length
+    : 0;
+
+  const cardsWrap = document.getElementById('stats-summary-cards');
+  if (cardsWrap) {
+    cardsWrap.innerHTML = `
+      <div class="stats-card"><div class="stats-card-icon text-cyan"><i class="fa-solid fa-layer-group"></i></div><div class="stats-card-value">${totalOps}</div><div class="stats-card-label">إجمالي العمليات</div></div>
+      <div class="stats-card"><div class="stats-card-icon text-purple"><i class="fa-solid fa-clock"></i></div><div class="stats-card-value">${totalClipMinutes.toFixed(1)}</div><div class="stats-card-label">دقائق مقاطع تمت معالجتها</div></div>
+      <div class="stats-card"><div class="stats-card-icon text-green"><i class="fa-solid fa-circle-check"></i></div><div class="stats-card-value">${successRate}%</div><div class="stats-card-label">نسبة نجاح العمليات</div></div>
+      <div class="stats-card"><div class="stats-card-icon text-gold"><i class="fa-solid fa-stopwatch"></i></div><div class="stats-card-value">${fmtOpDuration(avgProcSec)}</div><div class="stats-card-label">متوسط وقت المعالجة</div></div>
+      <div class="stats-card"><div class="stats-card-icon text-pink"><i class="fa-solid fa-triangle-exclamation"></i></div><div class="stats-card-value">${errorEntries.length}</div><div class="stats-card-label">عمليات فاشلة</div></div>
+    `;
+  }
+
+  const tbody = document.getElementById('stats-history-tbody');
+  if (tbody) {
+    if (finished.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="stats-empty-msg">لا يوجد سجل عمليات بعد</td></tr>`;
+    } else {
+      tbody.innerHTML = finished.slice(0, 100).map(e => {
+        const procSec = e.endedAt ? (e.endedAt - e.startedAt) / 1000 : null;
+        const statusBadge = e.status === 'done'
+          ? '<span class="stats-badge stats-badge-ok">✅ تمت</span>'
+          : `<span class="stats-badge stats-badge-fail" title="${(e.error || '').toString().replace(/"/g, '')}">❌ فشلت</span>`;
+        return `
+          <tr>
+            <td>${e.label}</td>
+            <td>${fmtOpDuration(e.clipDurationSec)}</td>
+            <td>${fmtOpDuration(procSec)}</td>
+            <td>${statusBadge}</td>
+            <td>${fmtOpDate(e.startedAt)}</td>
+          </tr>`;
+      }).join('');
+    }
+  }
+}
+
+window.openStatsPage = function () {
+  const overlay = document.getElementById('stats-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  overlay.classList.add('active');
+  renderStatsPage();
+  if (statsRefreshInterval) clearInterval(statsRefreshInterval);
+  statsRefreshInterval = setInterval(renderStatsPage, 1000);
+};
+
+window.closeStatsPage = function () {
+  const overlay = document.getElementById('stats-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    overlay.classList.remove('active');
+  }
+  if (statsRefreshInterval) { clearInterval(statsRefreshInterval); statsRefreshInterval = null; }
+};
+
+window.clearOpsLog = function () {
+  if (!confirm('هل تريد مسح كامل سجل العمليات؟')) return;
+  localStorage.removeItem(OPS_LOG_KEY);
+  renderStatsPage();
+};
+
 const state = {
   currentTool: 'stem',
   selectedFile: null,
@@ -557,6 +768,7 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
   let statusText = '🎙️ جاري عزل الموسيقى وتصفية الصوت والآلات بكرت الشاشة CUDA...';
   startProgress(10, statusText);
 
+  let __statsOpId = null;
   try {
     let fileToUpload = state.selectedFile;
 
@@ -577,6 +789,9 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
     // Fast 1.4s CUDA separation when upscale unchecked, 4K 120FPS when checked
     const reqRes = isUpscaleChecked ? resVal : 'none';
     const reqFps = isUpscaleChecked ? fpsVal : 'none';
+
+    const __statsClipDur = await getMediaDurationSeconds(fileToUpload || state.previewUrl || state.originalInputUrl);
+    __statsOpId = opLogStart('separate_audio', __statsClipDur, { fileSizeBytes: fileToUpload ? fileToUpload.size : null });
 
     let res;
     if (fileToUpload && fileToUpload.size > 1000) {
@@ -690,11 +905,13 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
 
       displayStemResults(vocalsRealBlobUrl, vocalsRealBlobUrl, vocalsRealBlobUrl, vocalsRealBlobUrl, vocalsRealBlobUrl);
     });
+    opLogEnd(__statsOpId, 'done');
 
   } catch (err) {
     console.error("Separation error:", err);
     clearInterval(state.progressInterval);
     clearInterval(state.timerInterval);
+    opLogEnd(__statsOpId, 'error', { error: err.message });
     alert(`⚠️ تعثرت عملية العزل: ${err.message || 'يرجى مراجعة الاتصال وإعادة المحاولة'}`);
   } finally {
     state.isProcessing = false;
@@ -917,10 +1134,14 @@ async function run4kUpscale() {
     }
   }, 12000);
 
+  let __statsOpId = null;
   try {
     let res;
     const urlInputVal = document.getElementById('tool-url-input')?.value.trim();
     const targetUrl   = state.originalInputUrl || urlInputVal || (state.previewUrl && !state.previewUrl.startsWith('blob:') ? state.previewUrl : '');
+
+    const __statsClipDur = await getMediaDurationSeconds(state.selectedFile || state.previewUrl || targetUrl);
+    __statsOpId = opLogStart('upscale', __statsClipDur, { fileSizeBytes: state.selectedFile ? state.selectedFile.size : null });
 
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.includes('tiktok.com') || targetUrl.includes('youtube.com') || targetUrl.includes('instagram.com')) && !state.selectedFile) {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
@@ -998,6 +1219,7 @@ async function run4kUpscale() {
               finishProgress(`✅ اكتملت ترقية الجودة: 4K UHD / 120FPS`, () => {
                 renderLiveMediaPreview(outUrl, 'video');
               });
+              opLogEnd(__statsOpId, 'done');
               resolve();
             } else if (statusData.status === 'error') {
               clearInterval(poller);
@@ -1016,6 +1238,7 @@ async function run4kUpscale() {
     clearInterval(state.progressInterval);
     clearInterval(state.timerInterval);
     clearInterval(state.upscaleStageInterval);
+    opLogEnd(__statsOpId, 'error', { error: e.message });
     alert(`⚠️ تعثرت عملية الترقية: ${e.message || 'يرجى مراجعة الملف وإعادة المحاولة'}`);
   }
   state.isProcessing = false;
@@ -1160,7 +1383,9 @@ async function runTextToSpeech() {
   // only falls back to the old browser voice if that's truly unreachable.
   startProgress(20, 'جاري توليد التعليق الصوتي بصوت طبيعي بالذكاء الاصطناعي...');
 
+  let __statsOpId = null;
   try {
+    __statsOpId = opLogStart('tts', null, { charCount: text.length });
     const res = await fetch(`${GPU_TUNNEL}/api/job`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
@@ -1183,6 +1408,7 @@ async function runTextToSpeech() {
     finishProgress('✅ تم توليد التعليق الصوتي بصوت طبيعي بالذكاء الاصطناعي!', () => {
       renderLiveMediaPreview(blobUrl, 'audio');
     });
+    opLogEnd(__statsOpId, 'done');
   } catch (e) {
     console.error('TTS error:', e);
     clearInterval(state.progressInterval);
@@ -1199,7 +1425,9 @@ async function runTextToSpeech() {
       utter.rate  = 0.90;
       window.speechSynthesis.speak(utter);
       finishProgress('⚠️ تعذر الوصول لمحرك الصوت بالذكاء الاصطناعي، تم التشغيل بصوت المتصفح الاحتياطي المؤقت.', () => {});
+      opLogEnd(__statsOpId, 'error', { error: 'AI engine unreachable, used browser fallback voice' });
     } else {
+      opLogEnd(__statsOpId, 'error', { error: e.message });
       alert(`⚠️ تعذر توليد الصوت: ${e.message}`);
     }
   }
@@ -1221,7 +1449,11 @@ async function runSpeechToText() {
 
   const sttLang = document.querySelector('input[name="stt-lang"]:checked')?.value || 'ar';
 
+  let __statsOpId = null;
   try {
+    const __statsClipDur = await getMediaDurationSeconds(state.selectedFile || state.previewUrl || targetUrl);
+    __statsOpId = opLogStart('transcribe', __statsClipDur, { fileSizeBytes: state.selectedFile ? state.selectedFile.size : null });
+
     let res;
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.includes('tiktok.com') || targetUrl.includes('youtube.com') || targetUrl.includes('instagram.com')) && !state.selectedFile) {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
@@ -1266,12 +1498,14 @@ async function runSpeechToText() {
         finishProgress('✅ تم استخراج وتفريغ النص بنجاح مع تصحيح إملائي تلقائي!', () => {
           displayTextResult(transcriptText);
         });
+        opLogEnd(__statsOpId, 'done');
         state.isProcessing = false;
         return;
       }
     }
   } catch(e) {
     console.warn("Server transcribe error:", e);
+    opLogEnd(__statsOpId, 'error', { error: e.message });
   }
 
   runClientSpeechRecognition();
@@ -1403,7 +1637,11 @@ async function runBackgroundRemoval() {
   state.isProcessing = true;
   startProgress(isImage ? 10 : 20, isImage ? '✂️ جاري إزالة الخلفية من الصورة بالذكاء الاصطناعي...' : '✂️ جاري إزالة الخلفية من الفيديو إطاراً بإطار (قد تستغرق دقائق)...');
 
+  let __statsOpId = null;
   try {
+    const __statsClipDur = isImage ? null : await getMediaDurationSeconds(state.selectedFile);
+    __statsOpId = opLogStart(isImage ? 'remove_background_image' : 'remove_background_video', __statsClipDur, { fileSizeBytes: state.selectedFile.size });
+
     const fileUrl = await uploadToBlob(state.selectedFile, state.selectedFile.name);
     const payload = {
       operation: isImage ? 'remove_background_image' : 'remove_background_video',
@@ -1491,11 +1729,13 @@ async function runBackgroundRemoval() {
         if (imgEl) imgEl.style.display = 'none';
       }
     });
+    opLogEnd(__statsOpId, 'done');
   } catch (e) {
     console.error('Background removal error:', e);
     clearInterval(state.progressInterval);
     clearInterval(state.timerInterval);
     state.isProcessing = false;
+    opLogEnd(__statsOpId, 'error', { error: e.message });
     alert(`⚠️ تعذرت إزالة الخلفية: ${e.message}`);
   }
 }
