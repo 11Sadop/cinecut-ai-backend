@@ -114,8 +114,33 @@ def _upload_output(local_path, content_type=None):
     opts = {"addRandomSuffix": "false"}
     if content_type:
         opts["contentType"] = content_type
-    resp = vercel_blob.put(pathname, data, opts)
-    return resp.get("url")
+
+    # ROOT CAUSE of "تعثرت عملية الترقية" (confirmed via a real FAILED
+    # request in RunPod's own request log: error = "Request failed after
+    # retries. Please try again.", executionTime ~80s): a 4K/120FPS AI
+    # upscale output is a genuinely large video file, and this was doing a
+    # single-shot, non-multipart PUT straight to Vercel Blob. Once the SDK's
+    # own internal retry budget for that one request was exhausted, it just
+    # gave up — no outer retry existed here at all, unlike the frontend's
+    # uploadToBlob() which already got a retry wrapper earlier. multipart
+    # uploads split large files into resumable chunks (far more reliable
+    # over a real network for anything beyond a few MB), and the outer loop
+    # below adds a second safety net for purely transient failures.
+    file_size_mb = len(data) / (1024 * 1024)
+    if file_size_mb > 4:
+        opts["multipart"] = True
+
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            resp = vercel_blob.put(pathname, data, opts)
+            return resp.get("url")
+        except Exception as e:
+            last_err = e
+            print(f"⚠️ Blob upload attempt {attempt}/3 failed ({file_size_mb:.1f}MB): {e}")
+            if attempt < 3:
+                time.sleep(attempt * 2)
+    raise RuntimeError(f"فشل رفع الملف الناتج إلى التخزين بعد عدة محاولات ({file_size_mb:.1f}MB): {last_err}")
 
 
 # ─────────────────────────────────────────────────────────────────────────
