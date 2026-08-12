@@ -26,6 +26,10 @@ rembg
 onnxruntime
 opencv-python-headless
 Pillow
+# Needed for rembg's alpha_matting=True refinement pass (soft/anti-aliased
+# cutout edges instead of the raw jagged/haloed matting output) -- without
+# this installed, alpha_matting silently fails and falls back to plain mode.
+pymatting
 
 # Optional: enables English spell-correction in text_correction.py
 # (Arabic correction has no extra dependency). Safe to omit — the app
