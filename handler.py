@@ -342,6 +342,55 @@ def _op_burn_subtitles(job_input):
     return {"status": "success", "session_id": session_id, "clean_media_url": url}
 
 
+def _op_tts(job_input):
+    """Real neural text-to-speech via edge-tts (Microsoft Edge's free online
+    TTS service — no API key needed). server.py already has a working
+    /api/tts route that does exactly this, but that FastAPI route only runs
+    on a local dev server — it was never reachable in production, because in
+    production every request goes through RunPod (this file), not directly
+    to server.py. So the frontend's TTS tool had been silently falling back
+    to the browser's own built-in speechSynthesis, which ignores the
+    specific voice picked from the dropdown entirely (only ~1 Arabic voice
+    exists in most browsers) — that's why every "different" voice sounded
+    identical (reported bug: "كلها اصوات تتشابه"). This wires the SAME
+    edge-tts engine server.py already has into the actual RunPod job path,
+    so each of the 8 distinct dropdown voices (already real edge-tts voice
+    IDs like ar-SA-HamedNeural, ar-EG-ShakirNeural, etc.) genuinely sounds
+    different.
+    """
+    import asyncio
+    import edge_tts
+
+    text = (job_input.get("text") or "").strip()
+    if not text:
+        return {"status": "error", "error": "النص فارغ"}
+
+    voice = job_input.get("voice") or job_input.get("voice_profile") or "ar-SA-HamedNeural"
+    # Accept either a raw edge-tts voice id (what the current dropdown
+    # sends) or one of server.py's friendlier VOICE_MAP keys, for safety.
+    voice = server.VOICE_MAP.get(voice, voice)
+    rate = job_input.get("rate", "+0%")
+    pitch = job_input.get("pitch", "+0Hz")
+
+    session_id = f"rp_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+    output_path = os.path.join(TEMP_DIR, f"tts_{session_id}.mp3")
+
+    async def _synth():
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+        await communicate.save(output_path)
+
+    try:
+        asyncio.run(_synth())
+    except Exception as e:
+        return {"status": "error", "error": f"فشل توليد الصوت ({voice}): {e}"}
+
+    if not os.path.isfile(output_path) or os.path.getsize(output_path) < 100:
+        return {"status": "error", "error": "تعذر توليد ملف الصوت"}
+
+    url = _upload_output(output_path, "audio/mpeg")
+    return {"status": "success", "session_id": session_id, "result_url": url, "voice": voice}
+
+
 _OPERATIONS = {
     "separate_audio": _op_separate_audio,
     "stem_from_url": _op_stem_from_url,
@@ -353,6 +402,7 @@ _OPERATIONS = {
     "remove_background_image": _op_remove_background_image,
     "remove_background_video": _op_remove_background_video,
     "burn_subtitles": _op_burn_subtitles,
+    "tts": _op_tts,
 }
 
 
