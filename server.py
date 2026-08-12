@@ -768,7 +768,18 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # this broadband stage now only adds a light extra
                     # damping on top instead of being able to silence
                     # anything outright.
-                    frame_gate = np.maximum(frame_gate, 0.5)
+                    # ROUND 6 FIX (reported: real songs -- e.g. a guitar/oud intro or an
+                    # instrumental break with no singer at all, like Talal Maddah's
+                    # "Qultu Awsafah" -- still have clearly audible guitar/drums). A
+                    # flat 0.5 floor was applied UNCONDITIONALLY, even during
+                    # stretches where the singer isn't present at all, so a purely
+                    # instrumental passage could never be suppressed more than -6dB.
+                    # Scale the floor by this frame's own vocal_presence instead of a
+                    # constant: a truly instrumental-only frame (vocal_presence ~ 0)
+                    # now gets the FULL suppression the sigmoid gate computed, while a
+                    # frame where the singer is actually audible keeps the same
+                    # -6dB-floor protection as before (vocal_presence ~ 1 -> floor ~ 0.5).
+                    frame_gate = np.maximum(frame_gate, 0.5 * vocal_presence)
 
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
