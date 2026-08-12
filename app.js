@@ -122,7 +122,7 @@ const state = {
   startTimeMs: 0,
   lastSessionId: null,
   transcriptSegments: [],
-  bgRemoveMode: 'transparent',
+  bgRemoveMode: 'color',
   bgRemoveColor: '#00ff00',
   bgRemoveCustomBgFile: null,
   bgRemoveResultUrl: null,
@@ -307,7 +307,23 @@ window.openToolModal = function(toolName) {
     if (dzSub) dzSub.innerText = 'يدعم جميع الصيغ: MP4, MP3, WAV, MOV, MKV, M4A';
   }
   if (toolName === 'bgremove') {
-    state.bgRemoveMode = 'transparent';
+    // BUG FIX: this used to hard-reset state.bgRemoveMode = 'transparent'
+    // on every tool open, silently undoing the earlier default-mode fix
+    // (transparent -> color) because this ran AFTER that fix's fallback
+    // logic and set a truthy value, so `state.bgRemoveMode || 'color'`
+    // never kicked in. Result: the mode card visually showed "color" as
+    // selected, but the actual request sent to the backend still used
+    // mode="transparent" — and transparent (alpha-channel) WebM video does
+    // not render correctly in a standard HTML5 <video> tag in most
+    // browsers, so the output looked like background removal "didn't
+    // work" even though the backend genuinely removed it. Using
+    // setBgRemoveMode('color') here keeps the runtime state AND the
+    // visible active-card UI in sync, every time the tool is opened.
+    if (typeof window.setBgRemoveMode === 'function') {
+      window.setBgRemoveMode('color');
+    } else {
+      state.bgRemoveMode = 'color';
+    }
     state.bgRemoveCustomBgFile = null;
     state.bgRemoveResultUrl = null;
     state.bgRemoveResultBlobUrl = null;
