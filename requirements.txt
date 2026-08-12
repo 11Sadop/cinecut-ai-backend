@@ -8,7 +8,17 @@ scipy
 numpy
 faster-whisper
 demucs
-edge-tts
+# Pinned (was a bare, unversioned "edge-tts"): Microsoft periodically rotates
+# the token/signing scheme (Sec-MS-GEC) its speech endpoint requires, which
+# breaks older edge-tts releases with a hard "403 Invalid response status"
+# on every single request -- a well-known, recurring upstream issue, not a
+# bug in our own TTS code. Because this requirements.txt line never changed
+# text, Docker layer-cached the very first pip install from months ago
+# forever, so the worker was silently stuck on whatever edge-tts version was
+# resolved back then even though newer releases (with the current DRM/token
+# fix already merged upstream) were available. Pinning to a current version
+# both fixes the actual breakage and forces this layer to reinstall fresh.
+edge-tts>=7.2.8
 librosa
 SpeechRecognition
 requests
