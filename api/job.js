@@ -27,6 +27,7 @@ const VALID_OPERATIONS = new Set([
   "remove_background_image",
   "remove_background_video",
   "burn_subtitles",
+  "tts",
 ]);
 
 export default async function handler(req, res) {
