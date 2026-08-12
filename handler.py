@@ -1,3 +1,4 @@
+# rebuild-trigger: force fresh RunPod build from full cumulative HEAD (blob cleanup + vocal separation + STT fixes) so it doesn't get superseded by an older, stale build finishing later
 """
 handler.py — RunPod Serverless entry point for CineCut AI Studio.
 ─────────────────────────────────────────────────────────────────────────
