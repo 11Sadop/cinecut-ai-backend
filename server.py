@@ -725,6 +725,27 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     vocal_presence = np.clip(frame_vocal_energy / peak_vocal_energy, 0.0, 1.0)
                     frame_gate = np.maximum(frame_gate, vocal_presence * 0.75)
 
+                    # ROUND 4 FIX: two prior rounds (hard gate -> smoothed
+                    # sigmoid -> sigmoid + vocal-presence protection) still
+                    # left the artist's voice audibly cutting/stuttering on
+                    # every report. The common thread across all three: this
+                    # broadband gate can still drive all the way down to
+                    # ~0.0 (a full, hard mute of that instant) whenever it
+                    # decides a frame is drum-dominant — and Demucs
+                    # (htdemucs_ft) already performs proper neural vocal
+                    # separation upstream of this whole stage, so what this
+                    # gate is muting is very often genuine (if slightly
+                    # bleedy) vocal content, not pure drum noise. A full
+                    # mute is always audible as a "cut"; a partial dip is
+                    # not. Flooring the gate at 0.5 (-6dB) means the worst
+                    # this stage can ever do is a mild, inaudible-as-cutting
+                    # dip — the per-bin mask + subtraction stages (1+2)
+                    # above already do the real, surgical bleed removal;
+                    # this broadband stage now only adds a light extra
+                    # damping on top instead of being able to silence
+                    # anything outright.
+                    frame_gate = np.maximum(frame_gate, 0.5)
+
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
                     _, clean_ch = scipy.signal.istft(Zv_clean, fs=sr_v, nperseg=2048, noverlap=1536)
