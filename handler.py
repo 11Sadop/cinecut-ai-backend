@@ -416,6 +416,58 @@ def _op_tts(job_input):
     return {"status": "success", "session_id": session_id, "result_url": url, "voice": voice}
 
 
+def _log_operation(operation, status, started_at, ended_at, job_input, result, error=None):
+    """Persists one small JSON record per job to Vercel Blob under logs/ --
+    this is what powers the separate, owner-only ops/cost dashboard.
+
+    Why this exists: the first attempt at a stats dashboard stored
+    everything in the BROWSER's localStorage, which only ever sees whatever
+    happened in that one specific browser/device -- it silently misses every
+    job triggered from any other browser, device, or a future frontend
+    entirely. Logging here instead, server-side, in the one place every
+    single job (regardless of which frontend/device triggered it) actually
+    passes through, makes the record genuinely global and impossible to
+    miss. It's also the only place that knows real wall-clock processing
+    time, which is what the SAR cost estimate is based on.
+
+    Best-effort and silent on failure: a logging hiccup must never break the
+    actual user-facing job, so every exception here is swallowed (after a
+    console warning) rather than propagated.
+    """
+    if not BLOB_AVAILABLE:
+        return
+    try:
+        import json as _json
+
+        clip_duration_sec = job_input.get("clip_duration_sec")
+        try:
+            clip_duration_sec = float(clip_duration_sec) if clip_duration_sec is not None else None
+        except (TypeError, ValueError):
+            clip_duration_sec = None
+
+        err_msg = None
+        if status == "error":
+            err_msg = error or (isinstance(result, dict) and result.get("error")) or "unknown error"
+
+        record = {
+            "operation": operation,
+            "status": status,  # "done" | "error"
+            "started_at": started_at,  # ms epoch
+            "ended_at": ended_at,  # ms epoch
+            "duration_sec": round(max(0.0, (ended_at - started_at) / 1000.0), 2),
+            "clip_duration_sec": clip_duration_sec,
+            "error": err_msg,
+        }
+        pathname = f"logs/{int(started_at)}_{uuid.uuid4().hex[:8]}.json"
+        vercel_blob.put(
+            pathname,
+            _json.dumps(record).encode("utf-8"),
+            {"addRandomSuffix": "false", "contentType": "application/json"},
+        )
+    except Exception as e:
+        print(f"warning: ops-log write failed (non-fatal, job itself is unaffected): {e}")
+
+
 _OPERATIONS = {
     "separate_audio": _op_separate_audio,
     "stem_from_url": _op_stem_from_url,
@@ -441,14 +493,22 @@ def handler(job):
             "error": f"Unknown or missing 'operation'. Expected one of: {list(_OPERATIONS.keys())}"
         }
 
+    started_at = time.time() * 1000
     try:
-        return _OPERATIONS[operation](job_input)
+        result = _OPERATIONS[operation](job_input)
+        ended_at = time.time() * 1000
+        result_status = (isinstance(result, dict) and result.get("status")) or "success"
+        log_status = "error" if result_status == "error" else "done"
+        _log_operation(operation, log_status, started_at, ended_at, job_input, result)
+        return result
     except Exception as e:
+        ended_at = time.time() * 1000
         traceback.print_exc()
         # server.py's _sync_* helpers sometimes raise FastAPI's HTTPException
         # (they were originally written to run inside request handlers) —
         # its str() isn't informative, so surface .detail when present.
         msg = getattr(e, "detail", None) or str(e) or e.__class__.__name__
+        _log_operation(operation, "error", started_at, ended_at, job_input, None, error=msg)
         return {"status": "error", "error": msg}
 
 
