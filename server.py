@@ -361,13 +361,51 @@ def _sync_transcribe(raw_bytes: bytes, filename: str, language: str = "ar"):
                 # actual conversational speech has, producing properly
                 # separated segments instead of one long fused block.
                 vad_parameters=dict(min_silence_duration_ms=350, speech_pad_ms=200),
-                condition_on_previous_text=True,
+                # BUG FIX (reported: STT returning unrelated boilerplate text
+                # like "ترجمة نانسي قنقر" — a classic Whisper hallucination.
+                # faster-whisper/OpenAI Whisper models were trained on huge
+                # amounts of YouTube auto-caption data, much of which ends
+                # with volunteer-translator credit lines ("ترجمة وتعديل
+                # <name>"). On silent, noisy, or very low-signal audio
+                # segments the model falls back to reproducing this
+                # memorized boilerplate instead of admitting "no speech".
+                # condition_on_previous_text=True made this WORSE: once one
+                # segment hallucinated, the model kept conditioning on that
+                # hallucinated text, letting it cascade into later segments.
+                # Disabling it stops that cascade (each segment is decoded
+                # independently), which is the standard mitigation for this
+                # exact failure mode.
+                condition_on_previous_text=False,
                 initial_prompt=initial_prompt,
                 word_timestamps=True
             )
             detected_language = getattr(info, "language", None) or detected_language
+            # Known hallucinated-boilerplate phrases (YouTube/Netflix/Amara
+            # caption credits etc.) that Whisper reproduces verbatim on
+            # silence/noise — filtered out defensively even if a segment
+            # otherwise looks confident, since these are never genuine
+            # user audio content.
+            _HALLUCINATION_PATTERNS = [
+                "ترجمة نانسي قنقر", "ترجمة وتعديل", "ترجمة نتفليكس",
+                "subtitles by", "amara.org", "اشترك في القناة",
+                "لايك واشتراك", "subscribe to", "thanks for watching",
+                "translated by", "ترجمة تلفزيون",
+            ]
             for s in segments:
                 raw_txt = s.text.strip()
+                # Hallucination heuristic: faster-whisper exposes
+                # no_speech_prob (model's confidence there's no speech at
+                # all in this segment) and avg_logprob (decoder confidence
+                # in the tokens it produced). A segment that's both "likely
+                # silence" AND "low decoder confidence" is almost always a
+                # hallucinated filler phrase, not real transcribed speech.
+                no_speech_p = float(getattr(s, "no_speech_prob", 0.0) or 0.0)
+                avg_logprob = float(getattr(s, "avg_logprob", 0.0) or 0.0)
+                if no_speech_p > 0.6 and avg_logprob < -0.5:
+                    continue
+                low_raw = raw_txt.lower()
+                if any(p in low_raw or p in raw_txt for p in _HALLUCINATION_PATTERNS):
+                    continue
                 t_txt = postprocess_transcript_text(raw_txt, detected_language)
                 if not t_txt:
                     continue
