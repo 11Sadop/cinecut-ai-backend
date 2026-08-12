@@ -676,13 +676,26 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     #      instrument which only occupies its own harmonics),
                     #      the ENTIRE vocal frame at that instant is muted —
                     #      closing the loophole stage 1+2 leave open.
+                    # ROUND 5 FIX (reported: separation leaves an audible
+                    # effect and changes the artist's own voice quality).
+                    # The previous version did a HARD per-bin cutoff
+                    # (mask[snr<1.0]=0) plus 1.2x OVER-subtraction of the
+                    # instrumental magnitude on top of Demucs's own neural
+                    # vocal separation. Both are classic causes of "musical
+                    # noise" / a thin, robotic, watery timbre in spectral-
+                    # subtraction denoising -- an audible artifact on the
+                    # voice itself, not genuine bleed removal. Dropped the
+                    # hard cutoff (the smooth exponential mask below already
+                    # suppresses low-SNR bins with no hard cliff) and
+                    # subtract the instrumental magnitude exactly (1.0x, not
+                    # 1.2x) so only real bleed is removed instead of also
+                    # eating into the vocal's own natural harmonics/sibilance.
                     snr = mag_v / (mag_i + 1e-6)
-                    mask = np.clip(1.0 - np.exp(-3.0 * (snr**2.0)), 0.0, 1.0)
-                    mask[snr < 1.0] = 0.0  # trust a bin only when vocal energy truly exceeds instrumental
+                    mask = np.clip(1.0 - np.exp(-2.0 * (snr**2.0)), 0.0, 1.0)
 
                     Zv_masked = Zv * mask
                     mag_v_masked = np.abs(Zv_masked)
-                    mag_v_clean = np.maximum(mag_v_masked - 1.2 * mag_i, 0.0)
+                    mag_v_clean = np.maximum(mag_v_masked - 1.0 * mag_i, 0.0)
                     phase_v = np.angle(Zv_masked)
                     Zv_clean = mag_v_clean * np.exp(1j * phase_v)
 
