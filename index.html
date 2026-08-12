@@ -15,7 +15,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Style CSS -->
-  <link rel="stylesheet" href="styles.css?v=20260807_SUITE_V45">
+  <link rel="stylesheet" href="styles.css?v=20260812_SUITE_V46_STATS_DASHBOARD">
 
   <style>
     html, body {
@@ -58,6 +58,10 @@
       <span class="pulse-green"></span>
       <span id="ai-engine-status">سيرفر الذكاء الاصطناعي: جاهز للمعالجة 🚀</span>
     </div>
+
+    <button id="stats-open-btn" class="stats-header-btn" onclick="openStatsPage();" title="إحصائيات ومتابعة العمليات">
+      <i class="fa-solid fa-chart-line"></i> <span>الإحصائيات</span>
+    </button>
   </header>
 
   <!-- MAIN CONTAINER -->
@@ -607,6 +611,50 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260810_SUITE_V135_EDITABLE_TEXT_LIVE_PREVIEW_AND_PROPER_FONT_SIZE_BURN"></script>
+  <!-- OPERATIONS STATS / LIVE DASHBOARD -->
+  <div id="stats-overlay" class="suite-modal-overlay" style="display:none; z-index:1150;">
+    <div class="suite-modal-box stats-panel">
+      <div class="suite-modal-header">
+        <h3><i class="fa-solid fa-chart-line text-cyan"></i> إحصائيات ومتابعة العمليات</h3>
+        <button class="suite-modal-close" onclick="closeStatsPage();">&times;</button>
+      </div>
+
+      <div class="suite-modal-body stats-panel-body">
+
+        <div class="stats-section">
+          <h4 class="stats-section-title"><span class="stats-pulse-dot"></span> العمليات الجارية الآن</h4>
+          <div id="stats-running-list" class="stats-running-list">
+            <div class="stats-empty-msg">لا توجد عمليات جارية حالياً</div>
+          </div>
+        </div>
+
+        <div id="stats-summary-cards" class="stats-cards-grid"></div>
+
+        <div class="stats-section">
+          <div class="stats-section-title-row">
+            <h4 class="stats-section-title"><i class="fa-solid fa-clock-rotate-left"></i> سجل العمليات التفصيلي</h4>
+            <button class="stats-clear-btn" onclick="clearOpsLog();"><i class="fa-solid fa-trash"></i> مسح السجل</button>
+          </div>
+          <div class="stats-table-wrap">
+            <table class="stats-table">
+              <thead>
+                <tr>
+                  <th>العملية</th>
+                  <th>مدة المقطع</th>
+                  <th>وقت المعالجة</th>
+                  <th>الحالة</th>
+                  <th>التاريخ والوقت</th>
+                </tr>
+              </thead>
+              <tbody id="stats-history-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=20260812_SUITE_V136_STATS_DASHBOARD"></script>
 </body>
 </html>
