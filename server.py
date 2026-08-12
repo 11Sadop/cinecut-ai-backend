@@ -667,6 +667,26 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     if frame_gate.shape[0] >= 5:
                         kernel = np.ones(5, dtype=np.float32) / 5.0
                         frame_gate = np.convolve(frame_gate, kernel, mode='same')
+
+                    # Protect frames where the singer is genuinely, strongly
+                    # present. A real drum hit landing on the beat WHILE
+                    # someone is singing (the backbeat — extremely common)
+                    # was still tripping this gate and briefly muting the
+                    # vocal right on every beat, which is exactly what reads
+                    # as the artist's voice "cutting"/stuttering in time with
+                    # the rhythm (reported bug: "صوت الفنان يقطع"). The
+                    # per-BIN debleed above already does real bleed removal
+                    # on those frames — this broadband gate is only meant for
+                    # moments the instrumental is dominant AND the voice is
+                    # basically silent/paused, not moments both are loud at
+                    # once. So scale the mute back off whenever this frame's
+                    # own vocal energy (relative to the loudest vocal moment
+                    # in the whole clip) is still significant.
+                    frame_vocal_energy = np.mean(mag_v, axis=0)
+                    peak_vocal_energy = float(np.max(frame_vocal_energy)) + 1e-6
+                    vocal_presence = np.clip(frame_vocal_energy / peak_vocal_energy, 0.0, 1.0)
+                    frame_gate = np.maximum(frame_gate, vocal_presence * 0.75)
+
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
                     _, clean_ch = scipy.signal.istft(Zv_clean, fs=sr_v, nperseg=2048, noverlap=1536)
