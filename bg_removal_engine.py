@@ -104,7 +104,7 @@ def _detect_text_mask(pil_img: Image.Image) -> np.ndarray:
         aspect = rw / float(rh)
         # Letter-like glyphs: roughly upright, not too elongated, small
         # relative to the frame (captions/timestamps are never huge).
-        if 0.1 < aspect < 4.0 and 6 <= rh <= max(10, int(h * 0.08)):
+        if 0.08 < aspect < 12.0 and 6 <= rh <= max(14, int(h * 0.14)):
             cv2.rectangle(glyph_mask, (x, y), (x + rw, y + rh), 255, -1)
             glyph_boxes.append((x + rw / 2.0, y + rh / 2.0))
 
@@ -138,10 +138,9 @@ def _detect_text_mask(pil_img: Image.Image) -> np.ndarray:
             continue
         cy = y + rh / 2.0
         in_border_band = cy < top_band or cy > bottom_band
-        if not in_border_band:
-            continue
         glyph_count = sum(1 for (gx, gy) in glyph_boxes if x <= gx <= x + rw and y <= gy <= y + rh)
-        if glyph_count < 3:
+        min_glyphs_needed = 3 if in_border_band else 5
+        if glyph_count < min_glyphs_needed:
             continue
         cv2.rectangle(clean_mask, (x, y), (x + rw, y + rh), 255, -1)
     return clean_mask
