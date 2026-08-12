@@ -799,14 +799,14 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'separate_audio', file_url: fileUrl, filename: 'input_video.mp4', resolution: reqRes, fps: reqFps })
+        body: JSON.stringify({ operation: 'separate_audio', file_url: fileUrl, filename: 'input_video.mp4', resolution: reqRes, fps: reqFps, clip_duration_sec: __statsClipDur })
       });
     } else {
       const targetUrl = state.originalInputUrl || state.previewUrl;
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'stem_from_url', url: targetUrl, resolution: reqRes, fps: reqFps })
+        body: JSON.stringify({ operation: 'stem_from_url', url: targetUrl, resolution: reqRes, fps: reqFps, clip_duration_sec: __statsClipDur })
       });
     }
 
@@ -1147,7 +1147,7 @@ async function run4kUpscale() {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'upscale_url', url: targetUrl, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+        body: JSON.stringify({ operation: 'upscale_url', url: targetUrl, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal, clip_duration_sec: __statsClipDur })
       });
     } else if (state.previewUrl && state.previewUrl.startsWith('blob:') && !state.selectedFile) {
       const bRes = await fetch(state.previewUrl);
@@ -1156,7 +1156,7 @@ async function run4kUpscale() {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'upscale', file_url: fileUrl, filename: 'video.mp4', resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+        body: JSON.stringify({ operation: 'upscale', file_url: fileUrl, filename: 'video.mp4', resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal, clip_duration_sec: __statsClipDur })
       });
     } else if (state.selectedFile) {
       const fname = state.selectedFile.name || 'video.mp4';
@@ -1167,7 +1167,7 @@ async function run4kUpscale() {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'upscale', file_url: fileUrl, filename: fname, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal })
+        body: JSON.stringify({ operation: 'upscale', file_url: fileUrl, filename: fname, resolution: resVal, fps: fpsVal, color_mode: colorVal, speed: speedVal, clip_duration_sec: __statsClipDur })
       });
     } else {
       throw new Error('يرجى وضع رابط فيديو أو اختيار ملف أولاً');
@@ -1459,7 +1459,7 @@ async function runSpeechToText() {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'transcribe_url', url: targetUrl, language: sttLang })
+        body: JSON.stringify({ operation: 'transcribe_url', url: targetUrl, language: sttLang, clip_duration_sec: __statsClipDur })
       });
     } else if (state.previewUrl && state.previewUrl.startsWith('blob:') && !state.selectedFile) {
       const bRes = await fetch(state.previewUrl);
@@ -1468,7 +1468,7 @@ async function runSpeechToText() {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'transcribe', file_url: fileUrl, filename: 'audio.wav', language: sttLang })
+        body: JSON.stringify({ operation: 'transcribe', file_url: fileUrl, filename: 'audio.wav', language: sttLang, clip_duration_sec: __statsClipDur })
       });
     } else if (state.selectedFile) {
       const fname = state.selectedFile.name || 'audio.wav';
@@ -1476,7 +1476,7 @@ async function runSpeechToText() {
       res = await fetch(`${GPU_TUNNEL}/api/job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-        body: JSON.stringify({ operation: 'transcribe', file_url: fileUrl, filename: fname, language: sttLang })
+        body: JSON.stringify({ operation: 'transcribe', file_url: fileUrl, filename: fname, language: sttLang, clip_duration_sec: __statsClipDur })
       });
     }
 
@@ -1645,7 +1645,8 @@ async function runBackgroundRemoval() {
     const fileUrl = await uploadToBlob(state.selectedFile, state.selectedFile.name);
     const payload = {
       operation: isImage ? 'remove_background_image' : 'remove_background_video',
-      file_url: fileUrl, filename: state.selectedFile.name, mode, color, blur_amount: blurAmount
+      file_url: fileUrl, filename: state.selectedFile.name, mode, color, blur_amount: blurAmount,
+      clip_duration_sec: __statsClipDur
     };
     if (state.bgRemoveCustomBgFile) {
       payload.custom_bg_url = await uploadToBlob(state.bgRemoveCustomBgFile, state.bgRemoveCustomBgFile.name);
