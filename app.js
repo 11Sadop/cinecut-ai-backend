@@ -421,6 +421,7 @@ function startProgress(estimatedSeconds, message) {
 function finishProgress(successMsg, callback) {
   clearInterval(state.progressInterval);
   clearInterval(state.timerInterval);
+  clearInterval(state.upscaleStageInterval);
   state.isProcessing = false;
   state.activeJobId = null;
   state.activeJobPoller = null;
@@ -861,7 +862,44 @@ async function run4kUpscale() {
   const speedVal = document.querySelector('input[name="upscale-speed"]:checked')?.value || 'fast';
 
   state.isProcessing = true;
-  startProgress(10, `جاري ترقية دقة الفيديو لـ 4K و 120 FPS عبر كرت الشاشة CUDA...`);
+  // Was startProgress(10, ...) — a 10-SECOND estimate for a real AI-mode 4K/
+  // 120FPS upscale (per-frame Real-ESRGAN + motion interpolation, the
+  // heaviest operation in the app). The fake progress bar hits its 96% cap
+  // within ~10 seconds and then just sits there for however long the real
+  // job actually takes (reported bug: "قعد 7 دقايق وما صار شيء" — looked
+  // completely frozen at 96% for 7+ minutes even though the backend was
+  // still legitimately working). Raised to a realistic baseline, and see the
+  // stage-message cycler below for what happens once even THIS estimate
+  // runs out on a longer clip.
+  startProgress(240, `جاري ترقية دقة الفيديو لـ 4K و 120 FPS عبر كرت الشاشة CUDA...`);
+
+  // RunPod's job-status polling does not expose real mid-job frame progress
+  // (verified: RunPod's own /status endpoint only returns
+  // {delayTime, id, status, workerId} — no live progress field), so there is
+  // no reliable way to show a genuine %. Instead, once the time-based
+  // estimate above is exhausted and the bar caps at 96%, cycle through
+  // honest, specific "still working" messages (paired with the real elapsed
+  // timer already on screen) so a long wait on a long/heavy clip reads as
+  // "still processing" instead of "frozen".
+  const _upscaleStageMessages = [
+    'الخادم يحلل الفيديو ويجهّز الإطارات للمعالجة...',
+    'رفع الدقة بالذكاء الاصطناعي إطاراً بإطار (Real-ESRGAN)...',
+    'دمج الحركة وتوليد إطارات وسيطة إضافية (Motion Interpolation)...',
+    'ضبط الألوان وتفاصيل الوجه بدقة...',
+    'الترميز النهائي للفيديو بدقة 4K...',
+    'لا تزال المعالجة تعمل — المقاطع الطويلة أو عالية الحركة قد تحتاج عدة دقائق إضافية، لا داعي لإعادة المحاولة.',
+  ];
+  let _upscaleStageIdx = 0;
+  clearInterval(state.upscaleStageInterval);
+  state.upscaleStageInterval = setInterval(() => {
+    const txt = document.getElementById('modal-progress-txt');
+    const fill = document.getElementById('modal-progress-fill');
+    const pctNow = fill ? (parseInt(fill.style.width) || 0) : 0;
+    if (txt && pctNow >= 90) {
+      txt.innerText = `${_upscaleStageMessages[_upscaleStageIdx % _upscaleStageMessages.length]} (${pctNow}%)`;
+      _upscaleStageIdx++;
+    }
+  }, 12000);
 
   try {
     let res;
@@ -961,6 +999,7 @@ async function run4kUpscale() {
     console.error("Upscale error:", e);
     clearInterval(state.progressInterval);
     clearInterval(state.timerInterval);
+    clearInterval(state.upscaleStageInterval);
     alert(`⚠️ تعثرت عملية الترقية: ${e.message || 'يرجى مراجعة الملف وإعادة المحاولة'}`);
   }
   state.isProcessing = false;
@@ -1628,9 +1667,28 @@ window.burnCaptionsToVideoDirectly = async function() {
       payload.segments_json = JSON.stringify(state.transcriptSegments);
     }
 
+    // Resolve a fetchable file_url the same way runSpeechToText() does —
+    // this used to ONLY check state.selectedFile, so any video brought in
+    // via the URL downloader (TikTok/YouTube/Instagram — state.selectedFile
+    // stays null for those, only state.previewUrl is set) had NO file_url
+    // sent at all, causing the backend's hard "Missing required field:
+    // file_url" error the moment burn-subtitles ran on a downloaded video.
     if (state.selectedFile) {
       payload.file_url = await uploadToBlob(state.selectedFile, state.selectedFile.name);
       payload.filename = state.selectedFile.name;
+    } else if (state.previewUrl && state.previewUrl.startsWith('blob:')) {
+      const bRes = await fetch(state.previewUrl);
+      const bBlob = await bRes.blob();
+      payload.file_url = await uploadToBlob(bBlob, 'video.mp4');
+      payload.filename = 'video.mp4';
+    } else if (state.previewUrl) {
+      payload.file_url = state.previewUrl;
+      payload.filename = 'video.mp4';
+    } else if (state.originalInputUrl) {
+      payload.file_url = state.originalInputUrl;
+      payload.filename = 'video.mp4';
+    } else {
+      throw new Error('تعذر تحديد الفيديو المطلوب حرق الترجمة عليه — أعد رفع الفيديو أو تحميله من الرابط مرة أخرى ثم حاول مجدداً.');
     }
 
     const res = await fetch(`${GPU_TUNNEL}/api/job`, {
