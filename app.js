@@ -665,7 +665,13 @@ function finishProgress(successMsg, callback) {
   if (txt) txt.innerText = `✅ 100% | ${successMsg || 'اكتملت العملية بنجاح!'}`;
   if (timerTxt) timerTxt.innerText = `⏱️ التوقيت المستغرق: ${totalSec} ثانية`;
 
+  // Hide the progress box (with its now-dead "cancel" button) once the job
+  // is truly done, instead of leaving it stuck on screen forever alongside
+  // the actual result -- that stuck state is what made a fully finished job
+  // look broken/unfinished to users.
   setTimeout(() => {
+    const progressBox = document.getElementById('modal-progress-container');
+    if (progressBox) progressBox.style.display = 'none';
     if (callback) callback();
   }, 400);
 }
@@ -1018,13 +1024,17 @@ function downloadStemDirectly(kind = 'vocals') {
 window.downloadStemDirectly = downloadStemDirectly;
 
 function downloadVideoDirectly() {
-  const url = state.processedCleanVideoBlobUrl || state.processedCleanVideoUrl || state.cleanMediaDirectUrl || state.previewUrl;
-  if (!url) { alert('فيديو النهائي غير جاهز للتحميل بعد!'); return; }
+  const url = state.processedCleanVideoBlobUrl || state.processedCleanVideoUrl || state.cleanMediaDirectUrl || state.processedMediaUrl || state.previewUrl;
+  if (!url) { alert('الملف النهائي غير جاهز للتحميل بعد!'); return; }
   let ext = 'mp4';
-  if (state.selectedFile && state.selectedFile.name) {
+  let baseName = 'CineCut_Clean_Video';
+  if (state.currentTool === 'tts') {
+    ext = 'mp3';
+    baseName = 'CineCut_Voiceover';
+  } else if (state.selectedFile && state.selectedFile.name) {
     ext = state.selectedFile.name.split('.').pop() || 'mp4';
   }
-  downloadFileDirectly(url, `CineCut_Clean_Video_${Date.now()}.${ext}`);
+  downloadFileDirectly(url, `${baseName}_${Date.now()}.${ext}`);
 }
 window.downloadVideoDirectly = downloadVideoDirectly;
 
@@ -1218,6 +1228,15 @@ async function run4kUpscale() {
 
               finishProgress(`✅ اكتملت ترقية الجودة: 4K UHD / 120FPS`, () => {
                 renderLiveMediaPreview(outUrl, 'video');
+                const resultBox = document.getElementById('modal-result-box');
+                const genericWrap = document.getElementById('generic-download-wrap');
+                const genericVideo = document.getElementById('generic-video-player');
+                if (resultBox) resultBox.style.display = 'block';
+                if (genericWrap) genericWrap.style.display = 'block';
+                if (genericVideo) {
+                  genericVideo.src = outUrl;
+                  genericVideo.style.display = 'block';
+                }
               });
               opLogEnd(__statsOpId, 'done');
               resolve();
@@ -1407,6 +1426,15 @@ async function runTextToSpeech() {
     state.processedMediaUrl = blobUrl;
     finishProgress('✅ تم توليد التعليق الصوتي بصوت طبيعي بالذكاء الاصطناعي!', () => {
       renderLiveMediaPreview(blobUrl, 'audio');
+      const resultBox = document.getElementById('modal-result-box');
+      const genericWrap = document.getElementById('generic-download-wrap');
+      const genericAudio = document.getElementById('generic-audio-player');
+      if (resultBox) resultBox.style.display = 'block';
+      if (genericWrap) genericWrap.style.display = 'block';
+      if (genericAudio) {
+        genericAudio.src = blobUrl;
+        genericAudio.style.display = 'block';
+      }
     });
     opLogEnd(__statsOpId, 'done');
   } catch (e) {
