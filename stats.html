@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>لوحة الإحصائيات والتكاليف | CineCut AI Studio</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css?v=20260812_SUITE_V46_STATS_DASHBOARD">
+
+  <style>
+    html, body {
+      margin: 0; padding: 0; min-height: 100vh;
+      background: var(--bg-dark); color: var(--text-main);
+      font-family: 'Cairo', sans-serif; direction: rtl;
+    }
+    .stats-page-wrap {
+      max-width: 900px; margin: 0 auto; padding: 28px 20px 60px;
+      display: flex; flex-direction: column; gap: 22px;
+    }
+    .stats-page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .stats-page-header h1 {
+      font-size: 1.4rem; font-weight: 900; margin: 0;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .stats-back-link {
+      color: var(--cyan); text-decoration: none; font-weight: 700;
+      font-size: 0.9rem; display: flex; align-items: center; gap: 6px;
+      border: 1px solid rgba(0,240,255,0.3); padding: 8px 16px; border-radius: 20px;
+      transition: all 0.2s ease;
+    }
+    .stats-back-link:hover { background: rgba(0,240,255,0.1); }
+    .stats-cost-card {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(0,240,255,0.08));
+      border: 1.5px solid rgba(245,158,11,0.4);
+    }
+    .stats-cost-card .stats-card-value { font-size: 1.7rem; color: var(--gold); }
+    .stats-note {
+      font-size: 0.78rem; color: var(--text-muted); text-align: center;
+      background: rgba(255,255,255,0.02); border: 1px dashed var(--border-color);
+      border-radius: var(--radius-md); padding: 10px 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="stats-page-wrap">
+
+    <div class="stats-page-header">
+      <h1><i class="fa-solid fa-chart-line text-cyan"></i> لوحة إحصائيات وتكاليف العمليات</h1>
+      <a class="stats-back-link" href="/"><i class="fa-solid fa-arrow-right"></i> رجوع للموقع الرئيسي</a>
+    </div>
+
+    <div class="stats-section">
+      <h4 class="stats-section-title"><span class="stats-pulse-dot"></span> العمليات الجارية الآن</h4>
+      <div id="stats-running-list" class="stats-running-list">
+        <div class="stats-empty-msg">لا توجد عمليات جارية حالياً</div>
+      </div>
+    </div>
+
+    <div id="stats-summary-cards" class="stats-cards-grid"></div>
+
+    <div class="stats-note">
+      التكلفة تقديرية، محسوبة من زمن المعالجة الفعلي × سعر كرت الشاشة على RunPod
+      (0.69$/ساعة) × سعر صرف الريال (3.75 ريال للدولار). قد تختلف قليلاً عن
+      الفاتورة الحقيقية إذا استخدمت الطلبات كرت الشاشة الاحتياطي الأعلى سعراً
+      وقت الازدحام.
+    </div>
+
+    <div class="stats-section">
+      <div class="stats-section-title-row">
+        <h4 class="stats-section-title"><i class="fa-solid fa-clock-rotate-left"></i> سجل العمليات التفصيلي</h4>
+        <button class="stats-clear-btn" onclick="clearOpsLog();"><i class="fa-solid fa-trash"></i> مسح السجل</button>
+      </div>
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>العملية</th>
+              <th>مدة المقطع</th>
+              <th>وقت المعالجة</th>
+              <th>التكلفة التقديرية</th>
+              <th>الحالة</th>
+              <th>التاريخ والوقت</th>
+            </tr>
+          </thead>
+          <tbody id="stats-history-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const GPU_RATE_USD_PER_HOUR = 0.69;
+    const USD_TO_SAR = 3.75;
+    const OPS_LOG_KEY = 'cinecut_ops_log';
+
+    const OP_LABELS = {
+      separate_audio: 'فصل الموسيقى عن الصوت',
+      stem_from_url:  'فصل الموسيقى (من رابط)',
+      upscale:        'رفع الجودة 4K',
+      upscale_url:    'رفع الجودة 4K (من رابط)',
+      transcribe:     'استخراج النص',
+      transcribe_url: 'استخراج النص (من رابط)',
+      tts:            'تحويل النص إلى صوت',
+      remove_background_image: 'إزالة خلفية (صورة)',
+      remove_background_video: 'إزالة خلفية (فيديو)',
+    };
+
+    function _loadOpsLog() {
+      try {
+        const raw = localStorage.getItem(OPS_LOG_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      } catch (e) { return []; }
+    }
+
+    function fmtOpDuration(sec) {
+      if (sec === null || sec === undefined || !isFinite(sec)) return '—';
+      sec = Math.max(0, Math.round(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function fmtOpDate(ts) {
+      try {
+        return new Date(ts).toLocaleString('ar-SA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch (e) { return new Date(ts).toLocaleString(); }
+    }
+
+    function costSarForProcSec(procSec) {
+      if (procSec === null || procSec === undefined || !isFinite(procSec)) return null;
+      const hours = procSec / 3600;
+      return hours * GPU_RATE_USD_PER_HOUR * USD_TO_SAR;
+    }
+
+    function fmtSar(sar) {
+      if (sar === null || sar === undefined || !isFinite(sar)) return '—';
+      if (sar < 0.01) return '< 0.01 ريال';
+      return sar.toFixed(2) + ' ريال';
+    }
+
+    function render() {
+      const log = _loadOpsLog().slice().reverse();
+      const running = log.filter(e => e.status === 'running');
+      const finished = log.filter(e => e.status !== 'running');
+
+      const runWrap = document.getElementById('stats-running-list');
+      if (running.length === 0) {
+        runWrap.innerHTML = '<div class="stats-empty-msg">لا توجد عمليات جارية حالياً</div>';
+      } else {
+        runWrap.innerHTML = running.map(e => {
+          const elapsedSec = (Date.now() - e.startedAt) / 1000;
+          const durLabel = e.clipDurationSec != null ? `مدة المقطع: ${fmtOpDuration(e.clipDurationSec)} · ` : '';
+          const label = OP_LABELS[e.operation] || e.label || e.operation;
+          return `
+            <div class="stats-running-item">
+              <span class="stats-pulse-dot"></span>
+              <div class="stats-running-info">
+                <div class="stats-running-label">${label}</div>
+                <div class="stats-running-sub">${durLabel}جارية منذ ${fmtOpDuration(elapsedSec)}</div>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      const doneEntries = finished.filter(e => e.status === 'done');
+      const errorEntries = finished.filter(e => e.status === 'error');
+      const totalOps = finished.length;
+      const totalClipMinutes = doneEntries.reduce((sum, e) => sum + (e.clipDurationSec || 0), 0) / 60;
+      const successRate = totalOps > 0 ? Math.round((doneEntries.length / totalOps) * 100) : 0;
+      const avgProcSec = doneEntries.length
+        ? doneEntries.reduce((sum, e) => sum + (((e.endedAt || e.startedAt) - e.startedAt) / 1000), 0) / doneEntries.length
+        : 0;
+      const totalCostSar = doneEntries.reduce((sum, e) => {
+        const procSec = e.endedAt ? (e.endedAt - e.startedAt) / 1000 : 0;
+        return sum + (costSarForProcSec(procSec) || 0);
+      }, 0);
+
+      document.getElementById('stats-summary-cards').innerHTML = `
+        <div class="stats-card stats-cost-card"><div class="stats-card-icon text-gold"><i class="fa-solid fa-sack-dollar"></i></div><div class="stats-card-value">${fmtSar(totalCostSar)}</div><div class="stats-card-label">إجمالي التكلفة التقديرية (كل العمليات)</div></div>
+        <div class="stats-card"><div class="stats-card-icon text-cyan"><i class="fa-solid fa-layer-group"></i></div><div class="stats-card-value">${totalOps}</div><div class="stats-card-label">إجمالي العمليات</div></div>
+        <div class="stats-card"><div class="stats-card-icon text-purple"><i class="fa-solid fa-clock"></i></div><div class="stats-card-value">${totalClipMinutes.toFixed(1)}</div><div class="stats-card-label">دقائق مقاطع تمت معالجتها</div></div>
+        <div class="stats-card"><div class="stats-card-icon text-green"><i class="fa-solid fa-circle-check"></i></div><div class="stats-card-value">${successRate}%</div><div class="stats-card-label">نسبة نجاح العمليات</div></div>
+        <div class="stats-card"><div class="stats-card-icon text-gold"><i class="fa-solid fa-stopwatch"></i></div><div class="stats-card-value">${fmtOpDuration(avgProcSec)}</div><div class="stats-card-label">متوسط وقت المعالجة</div></div>
+        <div class="stats-card"><div class="stats-card-icon text-pink"><i class="fa-solid fa-triangle-exclamation"></i></div><div class="stats-card-value">${errorEntries.length}</div><div class="stats-card-label">عمليات فاشلة</div></div>
+      `;
+
+      const tbody = document.getElementById('stats-history-tbody');
+      if (finished.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="stats-empty-msg">لا يوجد سجل عمليات بعد</td></tr>`;
+      } else {
+        tbody.innerHTML = finished.slice(0, 200).map(e => {
+          const procSec = e.endedAt ? (e.endedAt - e.startedAt) / 1000 : null;
+          const cost = e.status === 'done' ? costSarForProcSec(procSec) : null;
+          const label = OP_LABELS[e.operation] || e.label || e.operation;
+          const statusBadge = e.status === 'done'
+            ? '<span class="stats-badge stats-badge-ok">✅ تمت</span>'
+            : `<span class="stats-badge stats-badge-fail" title="${(e.error || '').toString().replace(/"/g, '')}">❌ فشلت</span>`;
+          return `
+            <tr>
+              <td>${label}</td>
+              <td>${fmtOpDuration(e.clipDurationSec)}</td>
+              <td>${fmtOpDuration(procSec)}</td>
+              <td>${fmtSar(cost)}</td>
+              <td>${statusBadge}</td>
+              <td>${fmtOpDate(e.startedAt)}</td>
+            </tr>`;
+        }).join('');
+      }
+    }
+
+    function clearOpsLog() {
+      if (!confirm('هل تريد مسح كامل سجل العمليات؟')) return;
+      localStorage.removeItem(OPS_LOG_KEY);
+      render();
+    }
+
+    render();
+    setInterval(render, 1000);
+  </script>
+
+</body>
+</html>
