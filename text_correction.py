@@ -20,23 +20,22 @@ silently skip English spell correction and keep the normalized text.
 import re
 
 # ─────────────────────────────────────────────────────────────────────────
-#  1) Arabic dialect / phonetic ASR correction dictionary
-#     (kept from the original engine + extended with generic categories)
+#  1) Arabic ASR artifact normalization
 # ─────────────────────────────────────────────────────────────────────────
-ARABIC_LYRIC_CORRECTIONS = [
-    (r'\bشلال يا مسعود\b', 'شقال يا مسعود'),
-    (r'\bشلال مسعود\b', 'شقال يا مسعود'),
-    (r'\bش قال\b', 'شقال'),
-    (r'\bشكوى\b', 'شكواي'),
-    (r'\bعمًا البناديك\b', 'عم بناديك'),
-    (r'\bمشتقلانيك\b', 'ومشتاق ليك'),
-    (r'\bلؤاك\b', 'لقاك'),
-    (r'\bبها وك\b', 'بيك'),
-    (r'\bمشويا\b', 'مش وياك'),
-    (r'\bالليالك\b', 'الليالي'),
-    (r'\bبطول وانا\b', 'بطوله وأنا'),
-    (r'\bالبناديك\b', 'بناديك'),
-]
+# NOTE: this used to also run an "ARABIC_LYRIC_CORRECTIONS" regex table here
+# (e.g. blindly rewriting every occurrence of the real word "شكوى" to
+# "شكواي", "لؤاك" to "لقاك", etc). That table was hand-built against ONE
+# specific test song's lyrics during an earlier debugging session and then
+# left running unconditionally on every single Arabic transcript afterward.
+# It directly violated this module's own stated safety rule above ("nothing
+# here should change the *meaning* of a correctly transcribed sentence") --
+# on any other audio, those patterns silently swapped in real but wrong
+# words wherever they happened to match, which is very likely the actual
+# cause of repeated "استخراج النص قاعد يخبص" (transcript coming out
+# scrambled/wrong) reports. Removed entirely; only the generic,
+# content-agnostic cleanup below (noise-tag stripping, punctuation/spacing
+# normalization, stutter-repeat collapsing) remains, which can't corrupt
+# real words because it never depends on what the words themselves are.
 
 # Bracketed / parenthesized hallucination tags Whisper frequently injects
 # for silence, music beds or crowd noise. Safe to strip entirely.
@@ -125,9 +124,6 @@ def clean_arabic_lyric(text: str) -> str:
     transcript segment."""
     if not text:
         return text
-
-    for pattern, repl in ARABIC_LYRIC_CORRECTIONS:
-        text = re.sub(pattern, repl, text)
 
     text = _NOISE_TAG_PATTERN.sub('', text)
     text = _TATWEEL_PATTERN.sub('', text)
