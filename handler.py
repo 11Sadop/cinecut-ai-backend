@@ -405,8 +405,25 @@ def _op_tts(job_input):
         communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
         await communicate.save(output_path)
 
+    # ROOT CAUSE of every real TTS job failing (confirmed via an actual
+    # job-status error: "asyncio.run() cannot be called from a running
+    # event loop"): RunPod's serverless worker already runs its own
+    # asyncio event loop on the main thread (it uses aiohttp internally to
+    # poll/report jobs), so calling asyncio.run() directly here — which
+    # insists on creating a brand-new loop — collides with that
+    # already-running loop and errors out immediately, every time. This is
+    # the real explanation for "كل الأصوات تتشابه ونطقها سيء (شبيه Siri)":
+    # the real edge-tts backend call was silently failing on literally
+    # every attempt, so app.js's catch-block fallback to the browser's
+    # built-in speechSynthesis (which ignores voice selection and sounds
+    # robotic) was firing 100% of the time, not just on rare failures.
+    # Fix: run the coroutine on a dedicated worker thread that has no
+    # pre-existing event loop, so asyncio.run() is free to create one there.
+    import concurrent.futures
+
     try:
-        asyncio.run(_synth())
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(asyncio.run, _synth()).result()
     except Exception as e:
         return {"status": "error", "error": f"فشل توليد الصوت ({voice}): {e}"}
 
