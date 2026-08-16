@@ -73,8 +73,15 @@ async function uploadToBlob(file, filename, _onRetry) {
 /** Polls /api/job-status/{jobId} until RunPod finishes the job (or errors/
  * times out), resolving with the final status payload. Used by any /api/*
  * route that returns { job_id } for async GPU processing. */
-function pollJobStatus(jobId, maxWaitMs = 5 * 60 * 1000, pollIntervalMs = 1500) {
+function pollJobStatus(jobId, maxWaitMs = 5 * 60 * 1000, pollIntervalMs = 1500, opName = '') {
   localStorage.setItem('cinecut_active_job_id', jobId);
+  // Records WHICH operation this job is, so that if the tab gets backgrounded
+  // (very likely on mobile during a multi-minute job) and later resumed by
+  // checkAndResumePendingMobileJob(), that function knows which result shape
+  // to expect (upscale_url vs result_url vs transcript, etc.) instead of
+  // only ever handling the audio-separation shape and silently dropping
+  // every other completed job when the user comes back to the tab.
+  if (opName) localStorage.setItem('cinecut_active_job_op', opName);
   state.activeJobId = jobId;
   let elapsed = 0;
   return new Promise((resolve, reject) => {
@@ -334,6 +341,7 @@ const state = {
   lastSessionId: null,
   transcriptSegments: [],
   bgRemoveMode: 'color',
+  bgRemoveModeExplicit: false,
   bgRemoveColor: '#00ff00',
   bgRemoveCustomBgFile: null,
   bgRemoveResultUrl: null,
@@ -378,6 +386,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const isImage = file.type.includes('image');
       const isAudio = file.type.includes('audio');
       renderLiveMediaPreview(state.previewUrl, isImage ? 'image' : (isAudio ? 'audio' : 'video'));
+
+      // ROOT CAUSE of "إزالة الخلفية تطلع خضراء دائمًا، أبيها شفافة": the
+      // tool defaulted EVERY output (images included) to solid-color mode
+      // because alpha-channel WebM genuinely doesn't render in a plain
+      // <video> tag — but that limitation only applies to VIDEO. A
+      // transparent PNG (image mode) displays correctly everywhere (an
+      // <img> tag, Photoshop, PowerPoint, any editor) exactly like every
+      // other background-removal tool (remove.bg, Canva, etc.) — there was
+      // never a real reason to force color mode for images too. Now: once
+      // we know the selected file is an image, auto-switch to transparent
+      // UNLESS the user already explicitly picked a different mode
+      // themselves (that choice always wins).
+      if (state.currentTool === 'bgremove' && isImage && !state.bgRemoveModeExplicit && typeof window.setBgRemoveMode === 'function') {
+        window.setBgRemoveMode('transparent', true);
+      }
 
       // The audio/video combo checkboxes (stem/upscale/denoise/stt) are
       // irrelevant for the background-removal tool — keep them hidden there.
@@ -535,6 +558,11 @@ window.openToolModal = function(toolName) {
     } else {
       state.bgRemoveMode = 'color';
     }
+    // Reset the "did the user explicitly pick a mode" tracker every time the
+    // tool is (re)opened, so the auto-transparent-for-images behavior above
+    // applies fresh to each new file, not just the very first one ever
+    // selected in this session.
+    state.bgRemoveModeExplicit = false;
     state.bgRemoveCustomBgFile = null;
     state.bgRemoveResultUrl = null;
     state.bgRemoveResultBlobUrl = null;
@@ -593,19 +621,63 @@ window.addEventListener('click', (e) => {
 });
 
 // ─── VOICE SAMPLE PREVIEW WITH EXPLICIT SITE TEXT ───────────────────────────
+// ROOT CAUSE of "كل الأصوات تتشابه ونطقها سيء (شبيه Siri)": this preview
+// button — which also auto-fires on every voice-dropdown change via
+// onVoiceSelectionChanged — ALWAYS used the browser's own built-in
+// speechSynthesis regardless of which of the 8 voices was picked. This is a
+// completely separate code path from the real per-voice edge-tts engine
+// already wired into the actual "ابدأ المعالجة" generate button (verified
+// working: two different voices produced two genuinely different audio
+// files). Anyone comparing voices the obvious way — via this sample button —
+// always heard the identical generic browser voice no matter what they
+// picked, which is exactly the reported bug. Now routes the preview through
+// the same real /api/job -> edge-tts pipeline, only falling back to the old
+// browser voice if the real engine is genuinely unreachable.
 async function listenToVoiceSample() {
   stopAllActiveAudio();
   const voice = document.getElementById('tool-tts-voice')?.value || 'ar-SA-HamedNeural';
   const textToSay = 'مرحباً بك في منصة سينيكات للذكاء الاصطناعي، أقدم لك التعليق الصوتي الفاخر.';
   const isEnglish = voice.startsWith('en');
-  
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(textToSay);
-    utterance.lang = isEnglish ? 'en-US' : 'ar-SA';
-    utterance.pitch = isEnglish ? 1.0 : 0.85;
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
+
+  const sampleBtn = document.querySelector('.btn-sample-listen');
+  const originalBtnHtml = sampleBtn ? sampleBtn.innerHTML : null;
+  if (sampleBtn) {
+    sampleBtn.disabled = true;
+    sampleBtn.style.opacity = '0.6';
+    sampleBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري تجهيز الصوت...';
+  }
+
+  try {
+    const res = await fetch(`${GPU_TUNNEL}/api/job`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+      body: JSON.stringify({ operation: 'tts', text: textToSay, voice })
+    });
+    if (!res.ok) throw new Error(`خطأ السيرفر ${res.status}`);
+    let data = await res.json();
+    if (data.job_id) {
+      data = await pollJobStatus(data.job_id, 60 * 1000, 1200);
+    }
+    if (data.error || !data.result_url) throw new Error(data.error || 'تعذر توليد العينة');
+    const audioUrl = resolveMediaUrl(data.result_url);
+    const audio = new Audio(audioUrl);
+    audio.play();
+  } catch (e) {
+    console.warn('Real-voice sample preview unreachable, using browser fallback voice:', e);
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(textToSay);
+      utterance.lang = isEnglish ? 'en-US' : 'ar-SA';
+      utterance.pitch = isEnglish ? 1.0 : 0.85;
+      utterance.rate = 0.95;
+      window.speechSynthesis.speak(utterance);
+    }
+  } finally {
+    if (sampleBtn) {
+      sampleBtn.disabled = false;
+      sampleBtn.style.opacity = '1';
+      sampleBtn.innerHTML = originalBtnHtml;
+    }
   }
 }
 window.listenToVoiceSample = listenToVoiceSample;
@@ -661,6 +733,8 @@ function finishProgress(successMsg, callback) {
   const txt = document.getElementById('modal-progress-txt');
   const timerTxt = document.getElementById('modal-timer-txt');
 
+  localStorage.removeItem('cinecut_active_job_op');
+
   if (fill) fill.style.width = '100%';
   if (txt) txt.innerText = `✅ 100% | ${successMsg || 'اكتملت العملية بنجاح!'}`;
   if (timerTxt) timerTxt.innerText = `⏱️ التوقيت المستغرق: ${totalSec} ثانية`;
@@ -695,6 +769,7 @@ async function cancelActiveJob() {
   state.activeJobPoller = null;
   state.activeJobId = null;
   localStorage.removeItem('cinecut_active_job_id');
+  localStorage.removeItem('cinecut_active_job_op');
 
   const progressBox = document.getElementById('modal-progress-container');
   const txt = document.getElementById('modal-progress-txt');
@@ -825,6 +900,7 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
     if (data.job_id) {
       const jobId = data.job_id;
       localStorage.setItem('cinecut_active_job_id', jobId);
+      localStorage.setItem('cinecut_active_job_op', 'separate_audio');
       state.activeJobId = jobId;
       let elapsed = 0;
       const pollInterval = 1000;
@@ -1191,6 +1267,7 @@ async function run4kUpscale() {
     if (data.job_id) {
       const jobId = data.job_id;
       localStorage.setItem('cinecut_active_job_id', jobId);
+      localStorage.setItem('cinecut_active_job_op', 'upscale');
       state.activeJobId = jobId;
       let elapsed = 0;
       const pollInterval = 1000;
@@ -1319,7 +1396,7 @@ let videoPlayUrl = null;
       });
       if (res.ok) {
         const data = await res.json();
-        const statusData = data.job_id ? await pollJobStatus(data.job_id, 3 * 60 * 1000) : data;
+        const statusData = data.job_id ? await pollJobStatus(data.job_id, 3 * 60 * 1000, 1500, 'download_url') : data;
         if (statusData.status === 'error') {
           throw new Error(statusData.error || 'تعذر تنزيل الفيديو');
         }
@@ -1413,7 +1490,7 @@ async function runTextToSpeech() {
     if (!res.ok) throw new Error(`خطأ السيرفر ${res.status}`);
     let data = await res.json();
     if (data.job_id) {
-      data = await pollJobStatus(data.job_id, 2 * 60 * 1000);
+      data = await pollJobStatus(data.job_id, 2 * 60 * 1000, 1500, 'tts');
     }
     if (data.error) throw new Error(data.error);
     if (!data.result_url) throw new Error('تعذر الحصول على رابط الصوت الناتج');
@@ -1511,7 +1588,7 @@ async function runSpeechToText() {
     if (res && res.ok) {
       let data = await res.json();
       if (data.job_id) {
-        data = await pollJobStatus(data.job_id, 5 * 60 * 1000);
+        data = await pollJobStatus(data.job_id, 5 * 60 * 1000, 1500, 'transcribe');
       }
       let transcriptText = '';
       if (data.transcript && Array.isArray(data.transcript)) {
@@ -1607,8 +1684,13 @@ function runClientSpeechRecognition() {
 }
 
 // ─── TOOL 7: AI BACKGROUND REMOVAL (IMAGE + VIDEO) ─────────────────────────
-window.setBgRemoveMode = function(mode) {
+window.setBgRemoveMode = function(mode, _isAuto) {
   state.bgRemoveMode = mode;
+  // Only a REAL user click on one of the mode cards counts as "explicit" —
+  // the auto-selection below (images -> transparent) passes _isAuto=true so
+  // it doesn't block itself from re-applying, and so a later manual pick by
+  // the user always still wins over it.
+  if (!_isAuto) state.bgRemoveModeExplicit = true;
   document.querySelectorAll('.bgremove-mode-card').forEach(c => c.classList.remove('active'));
   const card = document.getElementById(`bgmode-card-${mode}`);
   if (card) card.classList.add('active');
@@ -1693,6 +1775,7 @@ async function runBackgroundRemoval() {
     if (data.job_id) {
       const jobId = data.job_id;
       localStorage.setItem('cinecut_active_job_id', jobId);
+      localStorage.setItem('cinecut_active_job_op', isImage ? 'remove_background_image' : 'remove_background_video');
       state.activeJobId = jobId;
       let elapsed = 0;
       const pollInterval = 1500;
@@ -2058,30 +2141,139 @@ window.burnCaptionsToVideoDirectly = async function() {
 };
 
 // Mobile Background Job Resilience listener on visibilitychange & focus
+//
+// ROOT CAUSE of "رفع الجودة قعد 7 دقايق ونص وما صار شيء" (and the same for
+// any other multi-minute job on mobile): this function used to ONLY know how
+// to display an audio-separation result (vocals_url/clean_media_url). Every
+// OTHER job type — upscale (upscale_url), TTS (result_url), background
+// removal (result_url), transcription (transcript) — has a completely
+// different response shape. On mobile, backgrounding the tab (switching
+// apps, locking the screen — extremely likely during a 5-10+ minute real AI
+// upscale) suspends the page's JS timers, so the original in-page poller
+// dies silently. When the user returns, this resume check fires, correctly
+// sees status "done", but the old code's `if (vocalsPath)` was false for
+// every non-separation job — so the whole block was skipped, the finished
+// result was thrown away with no error and no message, and the job stayed
+// stuck in localStorage. It genuinely looked like "nothing happened" even
+// though the backend had already finished successfully. Now every operation
+// type is tracked (see pollJobStatus's opName param and the three inline
+// pollers) and handled here explicitly.
 async function checkAndResumePendingMobileJob() {
   const pendingJobId = localStorage.getItem('cinecut_active_job_id');
   if (!pendingJobId) return;
+  const op = localStorage.getItem('cinecut_active_job_op') || '';
 
   try {
     const res = await fetch(`${GPU_TUNNEL}/api/job-status/${pendingJobId}`, { headers: TUNNEL_HEADERS });
     if (!res.ok) return;
     const data = await res.json();
-    if (data.status === 'done') {
+
+    if (data.status === 'error') {
       localStorage.removeItem('cinecut_active_job_id');
+      localStorage.removeItem('cinecut_active_job_op');
+      state.isProcessing = false;
+      clearInterval(state.progressInterval);
+      clearInterval(state.timerInterval);
+      clearInterval(state.upscaleStageInterval);
+      const progressBox = document.getElementById('modal-progress-container');
+      if (progressBox) progressBox.style.display = 'none';
+      alert(`⚠️ فشلت العملية أثناء تصفحك: ${data.error || 'خطأ غير معروف'}`);
+      return;
+    }
+    if (data.status !== 'done') return;
+
+    localStorage.removeItem('cinecut_active_job_id');
+    localStorage.removeItem('cinecut_active_job_op');
+
+    if (op === 'separate_audio' || op === 'stem_from_url') {
       const cleanMediaPath = data.clean_media_url;
       const vocalsPath     = data.vocals_url || data.clean_media_url;
+      if (!vocalsPath) return;
+      state.processedVocalsUrl = resolveMediaUrl(vocalsPath);
+      state.processedCleanVideoUrl = cleanMediaPath ? resolveMediaUrl(cleanMediaPath) : state.processedVocalsUrl;
+      state.cleanMediaDirectUrl = state.processedCleanVideoUrl;
+      state.lastSessionId = data.session_id;
+      finishProgress('✅ اكتملت المعالجة في الخلفية بنجاح أثناء تصفحك!', () => {
+        displayStemResults(state.processedVocalsUrl, state.processedVocalsUrl, state.processedVocalsUrl, state.processedVocalsUrl, state.processedVocalsUrl);
+        const vPlayer = document.getElementById('clean-result-video-player');
+        if (vPlayer && state.processedCleanVideoUrl) vPlayer.src = state.processedCleanVideoUrl;
+      });
+
+    } else if (op === 'upscale' || op === 'upscale_url') {
+      if (!data.upscale_url) return;
+      const outUrl = resolveMediaUrl(data.upscale_url);
+      state.processedCleanVideoUrl = outUrl;
+      state.processedMediaUrl = outUrl;
+      finishProgress('✅ اكتملت ترقية الجودة في الخلفية بنجاح أثناء تصفحك!', () => {
+        renderLiveMediaPreview(outUrl, 'video');
+        const resultBox = document.getElementById('modal-result-box');
+        const genericWrap = document.getElementById('generic-download-wrap');
+        const genericVideo = document.getElementById('generic-video-player');
+        if (resultBox) resultBox.style.display = 'block';
+        if (genericWrap) genericWrap.style.display = 'block';
+        if (genericVideo) { genericVideo.src = outUrl; genericVideo.style.display = 'block'; }
+      });
+
+    } else if (op === 'tts') {
+      if (!data.result_url) return;
+      const audioUrl = resolveMediaUrl(data.result_url);
+      state.processedMediaUrl = audioUrl;
+      finishProgress('✅ تم توليد التعليق الصوتي في الخلفية بنجاح أثناء تصفحك!', () => {
+        renderLiveMediaPreview(audioUrl, 'audio');
+        const resultBox = document.getElementById('modal-result-box');
+        const genericWrap = document.getElementById('generic-download-wrap');
+        const genericAudio = document.getElementById('generic-audio-player');
+        if (resultBox) resultBox.style.display = 'block';
+        if (genericWrap) genericWrap.style.display = 'block';
+        if (genericAudio) { genericAudio.src = audioUrl; genericAudio.style.display = 'block'; }
+      });
+
+    } else if (op === 'remove_background_image' || op === 'remove_background_video') {
+      if (!data.result_url) return;
+      const fullUrl = resolveMediaUrl(data.result_url);
+      const isImage = op === 'remove_background_image';
+      state.bgRemoveResultUrl = fullUrl;
+      state.bgRemoveResultBlobUrl = fullUrl;
+      state.bgRemoveResultKind = isImage ? 'image' : 'video';
+      finishProgress('✅ تمت إزالة الخلفية في الخلفية بنجاح أثناء تصفحك!', () => {
+        const resultBox = document.getElementById('modal-result-box');
+        const resWrap = document.getElementById('bgremove-result-wrap');
+        const imgEl = document.getElementById('bgremove-result-image');
+        const vidEl = document.getElementById('bgremove-result-video');
+        if (resultBox) resultBox.style.display = 'block';
+        if (resWrap) resWrap.style.display = 'block';
+        if (isImage) {
+          if (imgEl) { imgEl.src = fullUrl; imgEl.style.display = 'block'; }
+          if (vidEl) vidEl.style.display = 'none';
+        } else {
+          if (vidEl) { vidEl.src = fullUrl; vidEl.style.display = 'block'; }
+          if (imgEl) imgEl.style.display = 'none';
+        }
+      });
+
+    } else if (op === 'transcribe' || op === 'transcribe_url') {
+      let transcriptText = '';
+      if (data.transcript && Array.isArray(data.transcript)) {
+        transcriptText = data.transcript.map(s => s.text).join('\n');
+        state.transcriptSegments = data.transcript;
+      } else if (data.text) {
+        transcriptText = data.text;
+      }
+      if (transcriptText) {
+        finishProgress('✅ تم استخراج النص في الخلفية بنجاح أثناء تصفحك!', () => {
+          displayTextResult(transcriptText);
+        });
+      }
+
+    } else {
+      // Unknown/legacy op (or a job started before this fix shipped, so no
+      // op was ever recorded) — best-effort fallback to the old separation
+      // shape rather than silently dropping the result.
+      const vocalsPath = data.vocals_url || data.clean_media_url;
       if (vocalsPath) {
         state.processedVocalsUrl = resolveMediaUrl(vocalsPath);
-        state.processedCleanVideoUrl = cleanMediaPath ? resolveMediaUrl(cleanMediaPath) : state.processedVocalsUrl;
-        state.cleanMediaDirectUrl = state.processedCleanVideoUrl;
-        state.lastSessionId = data.session_id;
-
         finishProgress('✅ اكتملت المعالجة في الخلفية بنجاح أثناء تصفحك!', () => {
           displayStemResults(state.processedVocalsUrl, state.processedVocalsUrl, state.processedVocalsUrl, state.processedVocalsUrl, state.processedVocalsUrl);
-          const vPlayer = document.getElementById('clean-result-video-player');
-          if (vPlayer && state.processedCleanVideoUrl) {
-            vPlayer.src = state.processedCleanVideoUrl;
-          }
         });
       }
     }
