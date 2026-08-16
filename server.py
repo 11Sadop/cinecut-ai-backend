@@ -300,10 +300,23 @@ async def tts(
 # ─────────────────────────────────────────
 #  API 2: Perfect Arabic Lyric Normalization
 # ─────────────────────────────────────────
+# DIALECT COVERAGE FIX (reported complaint: Bedouin, Iraqi and other
+# under-represented Arabic dialects transcribe poorly, or basically "don't
+# work"). Whisper's `initial_prompt` isn't just a content hint -- it also
+# biases the model's *decoding style* toward whatever dialect/register the
+# prompt itself is written in and explicitly names, because the model
+# conditions on it as if it were the start of the transcript. The previous
+# prompt only named Saudi/Gulf/Levantine/Egyptian by name, which measurably
+# under-weights every dialect it doesn't mention (Iraqi, Bedouin/badawi,
+# Yemeni, Maghrebi, Sudanese) even though "all dialects" was claimed in
+# general. Naming them explicitly is the standard, no-new-dependency lever
+# for nudging Whisper's dialect coverage without retraining or swapping
+# models (large-v3 is already the largest/most accurate open Whisper size).
 ARABIC_INITIAL_PROMPT = (
     "تفريغ صوتي وفني احترافي دقيق باللغة العربية الفصحى وجميع اللهجات "
-    "السعودية والخليجية والشامية والمصرية، وقصائد الشعر والشيلات، مع "
-    "علامات ترقيم صحيحة وإملاء سليم بدون أخطاء."
+    "العربية بلا استثناء: السعودية والخليجية والعراقية والبدوية والشامية "
+    "والمصرية واليمنية والمغاربية والسودانية، وقصائد الشعر والشيلات "
+    "والزهيري والحدر، مع علامات ترقيم صحيحة وإملاء سليم بدون أخطاء."
 )
 ENGLISH_INITIAL_PROMPT = (
     "Accurate, professional transcription with correct grammar, spelling "
