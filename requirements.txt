@@ -49,5 +49,18 @@ pyspellchecker
 # RunPod Serverless worker (handler.py) — job runtime + direct upload of
 # large inputs/outputs to Vercel Blob (works around Vercel's 4.5MB function
 # body limit; see handler.py's module docstring).
-runpod
+#
+# PINNED (was a bare, unversioned "runpod"): a documented runpod-python SDK
+# bug (versions 1.7.1 / 1.7.3) causes long-running jobs (e.g. a real 4K AI
+# upscale that legitimately takes tens of minutes) to fail their final
+# result delivery with "Failed to return job results. | 400, message='Bad
+# Request'" -- the GPU work completes successfully, but the SDK's internal
+# job-done callback to RunPod's API fails, so the user never receives the
+# result despite the full (costly) processing having already happened. This
+# exact requirements.txt line never changing text also meant Docker layer-
+# caching kept reinstalling whatever runpod version was resolved months ago
+# forever (the same root cause that silently broke edge-tts earlier -- see
+# the edge-tts comment above). Pinning to a current, fixed version both
+# avoids the known-bad SDK releases and forces this layer to reinstall fresh.
+runpod>=1.7.16
 vercel_blob
