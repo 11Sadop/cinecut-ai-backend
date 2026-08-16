@@ -224,7 +224,7 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
 #  REAL AI PATH: Real-ESRGAN per-frame super-resolution + FFmpeg
 #  motion-compensated `minterpolate` for genuine (non-duplicated) FPS boost.
 # ─────────────────────────────────────────────────────────────────────────
-def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target_fps, color_mode):
+def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target_fps, color_mode, progress_cb=None):
     """
     Streams every decoded frame straight through Real-ESRGAN and then
     straight into ffmpeg's stdin — no intermediate raw-frame file is ever
@@ -329,6 +329,17 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
             frame_count += 1
             if frame_count % 60 == 0:
                 print(f"   ...{frame_count}/{total_frames or '?'} frames upscaled")
+                # Reports progress back through RunPod's job-tracking API so a
+                # genuinely long (tens-of-minutes) AI upscale doesn't fall out
+                # of RunPod's internal job bookkeeping before it finishes --
+                # see the requirements.txt runpod pin comment for the failure
+                # this caused ("Failed to return job results | 400 Bad
+                # Request" after the GPU work had already completed).
+                if progress_cb:
+                    try:
+                        progress_cb(frame_count, total_frames)
+                    except Exception:
+                        pass
     finally:
         cap.release()
         try:
@@ -373,7 +384,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     return ok_final
 
 
-def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k", fps="120", color_mode="face", speed="fast"):
+def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k", fps="120", color_mode="face", speed="fast", progress_cb=None):
     """
     Main entry point (unchanged signature — server.py calls this exactly
     as before). `speed` now genuinely changes the pipeline:
@@ -392,7 +403,7 @@ def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k"
     print(f"⚡ CineCut Upscale Engine: mode={speed}, res={resolution}({target_w}x{target_h}), fps={fps}, color={color_mode}")
 
     if speed == "ai":
-        ok = _process_real_ai_upscale(input_path, output_path, target_w, target_h, target_fps, color_mode)
+        ok = _process_real_ai_upscale(input_path, output_path, target_w, target_h, target_fps, color_mode, progress_cb=progress_cb)
     else:
         ok = _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, target_fps, color_mode)
 
