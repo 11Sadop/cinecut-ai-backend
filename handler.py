@@ -182,7 +182,28 @@ def _op_transcribe(job_input):
     return result  # already plain JSON (transcript list + language), no files to upload
 
 
-def _op_upscale(job_input):
+def _make_progress_cb(job):
+    """Builds a progress_cb(frame_count, total_frames) that reports back
+    through RunPod's own job-tracking API (runpod.serverless.progress_update)
+    periodically during a long AI upscale. See the requirements.txt `runpod`
+    pin comment: without this, a genuinely long (tens-of-minutes) real AI
+    upscale can finish its GPU work successfully and still fail to deliver
+    the result, because RunPod's own job bookkeeping considered it
+    abandoned by the time it tried to report done ("Failed to return job
+    results | 400 Bad Request", confirmed via a real production log)."""
+    if not job:
+        return None
+
+    def _cb(frame_count, total_frames):
+        try:
+            pct = f"{frame_count}/{total_frames}" if total_frames else str(frame_count)
+            runpod.serverless.progress_update(job, f"upscaling frame {pct}")
+        except Exception:
+            pass
+    return _cb
+
+
+def _op_upscale(job_input, job=None):
     raw, filename = _decode_input_file(job_input)
     resolution = job_input.get("resolution", "4k")
     fps = job_input.get("fps", "120")
@@ -196,7 +217,8 @@ def _op_upscale(job_input):
         f.write(raw)
 
     ok = process_video_ai_upscale_and_motion(
-        input_path, output_path, resolution=resolution, fps=fps, color_mode=color_mode, speed=speed
+        input_path, output_path, resolution=resolution, fps=fps, color_mode=color_mode, speed=speed,
+        progress_cb=_make_progress_cb(job)
     )
     if not ok:
         return {"status": "error", "error": ai_engine.LAST_ERROR or "Upscale failed"}
@@ -205,7 +227,7 @@ def _op_upscale(job_input):
     return {"status": "success", "session_id": session_id, "upscale_url": url, "clean_media_url": url}
 
 
-def _op_upscale_url(job_input):
+def _op_upscale_url(job_input, job=None):
     url_in = job_input.get("url", "")
     if not url_in:
         return {"status": "error", "error": "Missing 'url'"}
@@ -223,7 +245,8 @@ def _op_upscale_url(job_input):
 
     output_path = os.path.join(TEMP_DIR, f"upscale_out_{session_id}.mp4")
     ok = process_video_ai_upscale_and_motion(
-        input_path, output_path, resolution=resolution, fps=fps, color_mode=color_mode, speed=speed
+        input_path, output_path, resolution=resolution, fps=fps, color_mode=color_mode, speed=speed,
+        progress_cb=_make_progress_cb(job)
     )
     if not ok:
         return {"status": "error", "error": ai_engine.LAST_ERROR or "Upscale failed"}
@@ -599,7 +622,15 @@ def handler(job):
 
     started_at = time.time() * 1000
     try:
-        result = _OPERATIONS[operation](job_input)
+        # upscale operations can genuinely run for tens of minutes on a real
+        # AI pass -- pass RunPod's `job` object through so they can report
+        # periodic progress_update() calls (see _make_progress_cb above),
+        # which keeps RunPod's own job-tracking from losing the job before
+        # it finishes (see the requirements.txt runpod pin comment).
+        if operation in ("upscale", "upscale_url"):
+            result = _OPERATIONS[operation](job_input, job)
+        else:
+            result = _OPERATIONS[operation](job_input)
         ended_at = time.time() * 1000
         result_status = (isinstance(result, dict) and result.get("status")) or "success"
         log_status = "error" if result_status == "error" else "done"
