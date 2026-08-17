@@ -636,48 +636,47 @@ window.addEventListener('click', (e) => {
 async function listenToVoiceSample() {
   stopAllActiveAudio();
   const voice = document.getElementById('tool-tts-voice')?.value || 'ar-SA-HamedNeural';
-  const textToSay = 'مرحباً بك في منصة سينيكات للذكاء الاصطناعي، أقدم لك التعليق الصوتي الفاخر.';
-  const isEnglish = voice.startsWith('en');
+  const sampleText = voice.startsWith('en')
+    ? 'Welcome to CineCut AI Studio, this is a preview of the selected voice.'
+    : 'مرحباً بك في منصة سينيكات للذكاء الاصطناعي، هذه عينة من الصوت المختار.';
 
-  const sampleBtn = document.querySelector('.btn-sample-listen');
-  const originalBtnHtml = sampleBtn ? sampleBtn.innerHTML : null;
-  if (sampleBtn) {
-    sampleBtn.disabled = true;
-    sampleBtn.style.opacity = '0.6';
-    sampleBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري تجهيز الصوت...';
-  }
+  const player = document.getElementById('voice-sample-player');
+  const btn = document.querySelector('.btn-sample-listen');
+
+  // Real edge-tts sample per voice (cached in-memory per session so
+  // re-clicking the same voice doesn't re-spend GPU time). This replaces
+  // the old window.speechSynthesis fallback, which always used whatever
+  // single default Arabic voice the browser/OS shipped regardless of the
+  // dropdown selection -- that's why every voice used to sound identical.
+  state.voiceSampleCache = state.voiceSampleCache || {};
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري تجهيز العينة...'; }
 
   try {
-    const res = await fetch(`${GPU_TUNNEL}/api/job`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
-      body: JSON.stringify({ operation: 'tts', text: textToSay, voice })
-    });
-    if (!res.ok) throw new Error(`خطأ السيرفر ${res.status}`);
-    let data = await res.json();
-    if (data.job_id) {
-      data = await pollJobStatus(data.job_id, 60 * 1000, 1200);
+    let url = state.voiceSampleCache[voice];
+    if (!url) {
+      const res = await fetch(`${GPU_TUNNEL}/api/job`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
+        body: JSON.stringify({ operation: 'tts', text: sampleText, voice })
+      });
+      if (!res.ok) throw new Error(`خطأ السيرفر ${res.status}`);
+      let data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (data.job_id) data = await pollJobStatus(data.job_id, 2 * 60 * 1000);
+      if (!data.result_url) throw new Error('تعذر توليد العينة');
+      url = resolveMediaUrl(data.result_url);
+      state.voiceSampleCache[voice] = url;
     }
-    if (data.error || !data.result_url) throw new Error(data.error || 'تعذر توليد العينة');
-    const audioUrl = resolveMediaUrl(data.result_url);
-    const audio = new Audio(audioUrl);
-    audio.play();
+    if (player) {
+      player.src = url;
+      player.style.display = 'block';
+      player.play().catch(() => {});
+    }
   } catch (e) {
-    console.warn('Real-voice sample preview unreachable, using browser fallback voice:', e);
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(textToSay);
-      utterance.lang = isEnglish ? 'en-US' : 'ar-SA';
-      utterance.pitch = isEnglish ? 1.0 : 0.85;
-      utterance.rate = 0.95;
-      window.speechSynthesis.speak(utterance);
-    }
+    console.error('Voice sample error:', e);
+    alert(`⚠️ تعذر تشغيل عينة الصوت: ${e.message || 'حاول مرة أخرى'}`);
   } finally {
-    if (sampleBtn) {
-      sampleBtn.disabled = false;
-      sampleBtn.style.opacity = '1';
-      sampleBtn.innerHTML = originalBtnHtml;
-    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-volume-high"></i> استماع للعينة'; }
   }
 }
 window.listenToVoiceSample = listenToVoiceSample;
@@ -1467,74 +1466,46 @@ async function runTextToSpeech() {
   if (!text) { alert('يرجى إدخال النص أولاً!'); return; }
 
   state.isProcessing = true;
-  // This used to ALWAYS use the browser's built-in speechSynthesis and
-  // completely ignore which of the 8 distinct voice options (Hamed,
-  // Hamdan, Shakir, Jamal...) was picked — it only ever set a generic
-  // lang="ar-SA", so every "different" voice sounded identical (reported
-  // bug: "حاط لي كلها اصوات تتشابه"). The real, genuinely different neural
-  // voices (edge-tts — free Microsoft Edge TTS, no API key) were already
-  // built server-side (/api/tts in server.py) but were never wired into the
-  // actual production RunPod job path, so they were unreachable. Now calls
-  // the real engine through the same job pipeline as every other tool, and
-  // only falls back to the old browser voice if that's truly unreachable.
-  startProgress(20, 'جاري توليد التعليق الصوتي بصوت طبيعي بالذكاء الاصطناعي...');
+  startProgress(8, 'جاري توليد التعليق الصوتي بصوت حقيقي عبر الذكاء الاصطناعي...');
 
-  let __statsOpId = null;
   try {
-    __statsOpId = opLogStart('tts', null, { charCount: text.length });
     const res = await fetch(`${GPU_TUNNEL}/api/job`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...TUNNEL_HEADERS },
       body: JSON.stringify({ operation: 'tts', text, voice })
     });
     if (!res.ok) throw new Error(`خطأ السيرفر ${res.status}`);
+
     let data = await res.json();
-    if (data.job_id) {
-      data = await pollJobStatus(data.job_id, 2 * 60 * 1000, 1500, 'tts');
-    }
     if (data.error) throw new Error(data.error);
-    if (!data.result_url) throw new Error('تعذر الحصول على رابط الصوت الناتج');
+    if (data.job_id) {
+      data = await pollJobStatus(data.job_id, 3 * 60 * 1000);
+    }
 
-    const audioUrl = resolveMediaUrl(data.result_url);
-    const rRes = await fetch(audioUrl, { headers: TUNNEL_HEADERS });
-    const rBlob = await rRes.blob();
-    const blobUrl = URL.createObjectURL(rBlob);
+    const resultPath = data.result_url;
+    if (!resultPath) throw new Error('تعذر الحصول على رابط الصوت الناتج');
+    const fullUrl = resolveMediaUrl(resultPath);
 
-    state.processedMediaUrl = blobUrl;
-    finishProgress('✅ تم توليد التعليق الصوتي بصوت طبيعي بالذكاء الاصطناعي!', () => {
-      renderLiveMediaPreview(blobUrl, 'audio');
+    state.processedCleanVideoUrl = fullUrl;
+    state.cleanMediaDirectUrl = fullUrl;
+
+    finishProgress('✅ تم توليد التعليق الصوتي بنجاح بصوت حقيقي!', () => {
       const resultBox = document.getElementById('modal-result-box');
       const genericWrap = document.getElementById('generic-download-wrap');
-      const genericAudio = document.getElementById('generic-audio-player');
+      const audioPlayer = document.getElementById('generic-audio-player');
       if (resultBox) resultBox.style.display = 'block';
       if (genericWrap) genericWrap.style.display = 'block';
-      if (genericAudio) {
-        genericAudio.src = blobUrl;
-        genericAudio.style.display = 'block';
+      if (audioPlayer) {
+        audioPlayer.src = fullUrl;
+        audioPlayer.style.display = 'block';
+        audioPlayer.load();
       }
     });
-    opLogEnd(__statsOpId, 'done');
   } catch (e) {
-    console.error('TTS error:', e);
+    console.error("TTS error:", e);
     clearInterval(state.progressInterval);
     clearInterval(state.timerInterval);
-    // Degraded fallback ONLY if the real AI voice engine is unreachable —
-    // still better than a hard failure, but note this browser voice does
-    // NOT vary by the selected option (that's the whole bug being fixed).
-    if (window.speechSynthesis) {
-      const isEnglish = voice.startsWith('en');
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang  = isEnglish ? 'en-US' : 'ar-SA';
-      utter.pitch = isEnglish ? 1.0 : 0.82;
-      utter.rate  = 0.90;
-      window.speechSynthesis.speak(utter);
-      finishProgress('⚠️ تعذر الوصول لمحرك الصوت بالذكاء الاصطناعي، تم التشغيل بصوت المتصفح الاحتياطي المؤقت.', () => {});
-      opLogEnd(__statsOpId, 'error', { error: 'AI engine unreachable, used browser fallback voice' });
-    } else {
-      opLogEnd(__statsOpId, 'error', { error: e.message });
-      alert(`⚠️ تعذر توليد الصوت: ${e.message}`);
-    }
+    alert(`⚠️ تعذر توليد التعليق الصوتي: ${e.message || 'يرجى المحاولة مرة أخرى'}`);
   }
   state.isProcessing = false;
 }
