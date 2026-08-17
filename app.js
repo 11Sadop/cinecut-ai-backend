@@ -872,7 +872,7 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
     }
 
     const resVal = document.querySelector('input[name="upscale-res"]:checked')?.value || '4k';
-    const fpsVal = document.querySelector('input[name="upscale-fps"]:checked')?.value || '120';
+    const fpsVal = document.querySelector('input[name="upscale-fps"]:checked')?.value || '60';
     const isUpscaleChecked = document.getElementById('chk-op-upscale')?.checked;
     
     // Fast 1.4s CUDA separation when upscale unchecked, 4K 120FPS when checked
