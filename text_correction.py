@@ -239,3 +239,5 @@ def postprocess_transcript_text(text: str, language: str = "ar") -> str:
     text = _REPEAT_PUNCT_PATTERN.sub(r'\1', text)
     text = _MULTI_SPACE_PATTERN.sub(' ', text)
     return _strip_if_bare_hallucination(text.strip())
+
+# BUILD-FORCE: sync marker to force a fresh unambiguous RunPod build containing ROUND12 debleed + NVENC + diacritics-strip + Arabic bg-removal fixes together.
