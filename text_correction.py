@@ -49,6 +49,18 @@ _NOISE_TAG_PATTERN = re.compile(
 # to strip since it never changes meaning.
 _TATWEEL_PATTERN = re.compile(r'ـ+')
 
+# Arabic diacritics (tashkeel: fatha, damma, kasra, sukun, shadda,
+# tanwin, etc). REPORTED BUG: transcript comes out fully diacritized
+# (مُشَكَّلة -style marks on every letter) which nobody wants for a normal
+# transcript/caption -- diacritics are optional pronunciation guides in
+# written Arabic, virtually always omitted outside Quran/school-textbook
+# typesetting, and Whisper large-v3 sometimes emits them inconsistently
+# (it was trained on some diacritized sources like Quran recitation/MSA
+# news). Stripping them is always safe -- removing tashkeel never
+# changes which WORDS are on the page, only the (already-omitted-by-
+# convention) pronunciation hints on top of them.
+_DIACRITICS_PATTERN = re.compile(r'[\u0610-\u061A\u064B-\u065F\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED\u08D3-\u08FF]')
+
 # Whisper frequently hallucinates a single bare (unbracketed) word like
 # "موسيقى" / "Music" for a whole segment when that stretch of audio is pure
 # instrumental with no speech — the noise-tag pattern above only strips the
@@ -127,6 +139,7 @@ def clean_arabic_lyric(text: str) -> str:
 
     text = _NOISE_TAG_PATTERN.sub('', text)
     text = _TATWEEL_PATTERN.sub('', text)
+    text = _DIACRITICS_PATTERN.sub('', text)
     text = _REPEAT_PUNCT_PATTERN.sub(r'\1', text)
     text = _SPACE_BEFORE_PUNCT_PATTERN.sub(r'\1', text)
     text = _NO_SPACE_AFTER_PUNCT_PATTERN.sub(r'\1 \2', text)
