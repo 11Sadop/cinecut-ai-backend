@@ -761,6 +761,15 @@ async function cancelActiveJob() {
     return; // nothing running to cancel
   }
 
+  // Actually cancel the RunPod job server-side (not just stop polling
+  // client-side) -- otherwise clicking "cancel" only hides the progress
+  // bar while the GPU worker keeps running and billing in the background.
+  // See api/job-status/[id].js's DELETE handler, which forwards this to
+  // RunPod's real /cancel endpoint.
+  if (jobId) {
+    fetch(`/api/job-status/${jobId}`, { method: 'DELETE', headers: TUNNEL_HEADERS }).catch(() => {});
+  }
+
   clearInterval(state.activeJobPoller);
   clearInterval(state.progressInterval);
   clearInterval(state.timerInterval);
