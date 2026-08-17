@@ -759,24 +759,27 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                         kernel = np.ones(5, dtype=np.float32) / 5.0
                         frame_gate = np.convolve(frame_gate, kernel, mode='same')
 
-                    # Protect frames where the singer is genuinely, strongly
-                    # present. A real drum hit landing on the beat WHILE
-                    # someone is singing (the backbeat — extremely common)
-                    # was still tripping this gate and briefly muting the
-                    # vocal right on every beat, which is exactly what reads
-                    # as the artist's voice "cutting"/stuttering in time with
-                    # the rhythm (reported bug: "صوت الفنان يقطع"). The
-                    # per-BIN debleed above already does real bleed removal
-                    # on those frames — this broadband gate is only meant for
-                    # moments the instrumental is dominant AND the voice is
-                    # basically silent/paused, not moments both are loud at
-                    # once. So scale the mute back off whenever this frame's
-                    # own vocal energy (relative to the loudest vocal moment
-                    # in the whole clip) is still significant.
-                    frame_vocal_energy = np.mean(mag_v, axis=0)
-                    peak_vocal_energy = float(np.max(frame_vocal_energy)) + 1e-6
-                    vocal_presence = np.clip(frame_vocal_energy / peak_vocal_energy, 0.0, 1.0)
-                    frame_gate = np.maximum(frame_gate, vocal_presence * 0.75)
+                    # ROUND 11 FIX (reported again: quality worse + oud/
+                    # drums still audible). Found the REAL reason ROUND
+                    # 9/10's floor-lowering (0.15 -> 0.05 below) never
+                    # actually reduced audible bleed: this exact
+                    # "protect the singer" floor used to live right here
+                    # at a much higher value (0.75), applied BEFORE the
+                    # ROUND 7 fix block below recomputes frame_gate the
+                    # correct way and re-applies its own (much lower,
+                    # currently 0.05) floor. np.maximum() only ever
+                    # RAISES a value, so this old 0.75 floor being applied
+                    # FIRST meant the ROUND 7/9/10 floor below could
+                    # mathematically never take effect -- 0.75 always won
+                    # regardless of what the second floor was set to.
+                    # ROUND 7's own comment (below) claims "the redundant
+                    # duplicate call removed", but only the SECOND of the
+                    # two np.maximum(frame_gate, ...) calls was ever
+                    # edited in every round since -- this FIRST one was
+                    # never actually deleted from the file. This is why
+                    # every debleed round since ROUND 7 had zero real
+                    # effect on this floor despite the tuning. Deleted
+                    # for real this round.
 
                     # ROUND 7 FIX (reported AGAIN after ROUND 6, same example
                     # - Talal Maddah's song: guitar/oud/drums still
