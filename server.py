@@ -619,7 +619,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                 # instrument bleed into the vocal stem to begin with) at the cost
                 # of roughly 2x GPU time on this one step -- a small, justified
                 # trade given this step alone was only ~4.8s.
-                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=2, split=True, overlap=0.5)[0]
+                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=3, split=True, overlap=0.5)[0]  # ROUND 10: was shifts=2 -- reported drums/oud still audible after ROUND 9; more shifts = less bleed leaking into the vocals stem at the source, which no post-processing below can fix once it is already there
             
             sources = sources * ref.std() + ref.mean()
             stems = model_demucs.sources
@@ -724,7 +724,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
 
                     Zv_masked = Zv * mask
                     mag_v_masked = np.abs(Zv_masked)
-                    mag_v_clean = np.maximum(mag_v_masked - 2.2 * mag_i, 0.0)  # ROUND 9: was 1.2x, oud residue survived the weaker subtraction
+                    mag_v_clean = np.maximum(mag_v_masked - 3.2 * mag_i, 0.0)  # ROUND 10: was 2.2x -- still audible, pushing further
                     phase_v = np.angle(Zv_masked)
                     Zv_clean = mag_v_clean * np.exp(1j * phase_v)
 
