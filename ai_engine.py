@@ -268,25 +268,25 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     # Interpolation, aobmc = adaptive overlapped block motion compensation)
     # — genuinely estimates and interpolates motion vectors between frames,
     # unlike a naive `fps=` filter which just duplicates/drops frames.
-    minterp = f"minterpolate=fps={target_fps}:mi_mode=blend"  # was mi_mode=mci:mc_mode=obmc.
-    # REAL production evidence (RunPod request f182a36e...): a 14-second,
-    # 640x360 source clip (already small -- the earlier esrgan_engine.py
-    # "wasted compute" fix does NOT apply here, source is already smaller
-    # than target/4) was cancelled by the user after 23m33s, having only
-    # reached frame 420/440. That is ~3.2s per single 640x360 frame, which
-    # is far too slow to be the Real-ESRGAN forward pass alone on a modern
-    # GPU -- the raw frames are piped into this ffmpeg process's stdin at
-    # ~25MB/frame (4K rawvideo), so if ffmpeg can't keep up, the pipe
-    # backpressures and the whole job's throughput becomes gated by
-    # ffmpeg's minterpolate stage specifically. mi_mode=mci does real
-    # motion-vector search, and that search's cost scales with the
-    # resolution it runs on -- here that's the FULL 4K output frame, not
-    # the small source frame, which is drastically more expensive than
-    # typical mci benchmarks (usually quoted at 1080p or below). Switching
-    # to mi_mode=blend drops the motion search entirely in favor of a
-    # weighted cross-fade between the two surrounding real frames -- still
-    # genuinely new interpolated content (not naive duplication), just
-    # without the mci cost that was making 4K jobs impractically slow.
+    minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=obmc:vsbmc=0"  # ROUND 2: was mi_mode=blend.
+    # REPORTED AGAIN after switching to blend: "quality is bad" (رفع الجودة
+    # سيئ). Root cause of the complaint: mi_mode=blend is not real motion-
+    # compensated interpolation at all -- it is a plain weighted cross-
+    # fade between the two surrounding real frames, with zero motion
+    # vector search. On any real motion in the clip that produces visible
+    # double-exposure/ghosting on every interpolated frame, and blown up
+    # to a full 4K output that artifact reads as clearly "bad quality",
+    # not a subtle tradeoff. blend was chosen purely to kill the mci
+    # motion-search cost that was making 4K jobs slow -- but it threw out
+    # interpolation quality entirely to do it, which is not what was
+    # asked for ("فلاتر ممتازة مناسبة لرفع الجودة"). Switched back to real
+    # motion-compensated interpolation (mi_mode=mci) but with the cheaper
+    # mc_mode=obmc (single block size) instead of aobmc, and vsbmc
+    # (variable-size block motion compensation -- an extra, expensive
+    # refinement pass on top of obmc) explicitly disabled. This is still
+    # genuine per-block motion vector estimation (no ghosting), just
+    # without the two most expensive refinement passes that combined with
+    # aobmc+vsbmc=1 at full 4K to produce the original 23m33s job.
     vf_str = f"{minterp},{_color_eq_filter(color_mode)}"
 
     duration_sec = (total_frames / src_fps) if (total_frames and src_fps) else None
