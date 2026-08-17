@@ -86,8 +86,23 @@ def _test_nvenc_available():
             "-c:v", "h264_nvenc", "-f", "null", "-"
         ]
         res = subprocess.run(cmd, capture_output=True, timeout=20)
-        return res.returncode == 0
-    except Exception:
+        ok = res.returncode == 0
+        if not ok:
+            # REAL DIAGNOSTIC (was silently swallowed before): after the
+            # Dockerfile NVIDIA_DRIVER_CAPABILITIES=video fix, real RunPod
+            # job logs still showed "ffmpeg (libx264)" not NVENC, meaning
+            # this probe is STILL failing even on the fixed image. Printing
+            # the real ffmpeg stderr here (instead of just returning False)
+            # is the only way to find out WHY on the next real job -- could
+            # be RunPod's own container runtime not honoring the image's
+            # driver-capabilities env at all (platform-level, outside our
+            # Dockerfile's control), missing NVENC codec support in this
+            # ffmpeg build, or a genuinely different error.
+            err_tail = (res.stderr or b"").decode(errors="replace")[-400:]
+            print(f"⚠️ NVENC probe failed (returncode={res.returncode}): {err_tail}")
+        return ok
+    except Exception as e_nvenc_probe:
+        print(f"⚠️ NVENC probe raised exception: {e_nvenc_probe}")
         return False
 
 
@@ -298,7 +313,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     if use_nvenc:
         venc_args = ["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize]
     else:
-        venc_args = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-maxrate", maxrate, "-bufsize", bufsize]
+        venc_args = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "21", "-maxrate", maxrate, "-bufsize", bufsize]  # was preset=veryfast,crf=20 -- REAL EVIDENCE (RunPod logs): NVENC probe still fails even after the Dockerfile driver-capabilities fix, so every AI-upscale job is still CPU-encoding a full 4K stream. Per-frame timing has stayed ~2.6-3.2s/frame across every minterpolate-mode change tried in prior rounds, which points at this CPU encode step (not minterpolate) as the real bottleneck. ultrafast trades a little compression efficiency for real encode-speed -- the most direct lever available while NVENC access remains blocked at the platform level
 
     cmd = [
         FFMPEG_PATH, "-y",
