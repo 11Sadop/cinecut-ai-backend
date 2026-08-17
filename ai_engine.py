@@ -447,3 +447,5 @@ def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k"
     else:
         print(f"❌ Upscale ({speed}) failed after {dur:.2f}s")
     return ok
+
+# BUILD-FORCE-2: sync marker to force one final unambiguous RunPod build containing ROUND13 debleed + NVENC diagnostics/ultrafast fixes together.
