@@ -707,11 +707,24 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # 1.2x) so only real bleed is removed instead of also
                     # eating into the vocal's own natural harmonics/sibilance.
                     snr = mag_v / (mag_i + 1e-6)
-                    mask = np.clip(1.0 - np.exp(-3.0 * (snr**2.0)), 0.0, 1.0)
+                    # ROUND 9 FIX (reported again: oud specifically still
+                    # audible even after ROUND 8). Root cause traced: the
+                    # broadband gate below is *intentionally* blind to
+                    # sustained tonal instruments (oud/guitar/piano) --
+                    # it only reacts when many bins are instrument-
+                    # dominant at once (drums), and oud only ever
+                    # dominates its own narrow harmonic bins. So the ONLY
+                    # thing fighting oud bleed is this per-bin mask +
+                    # subtraction below, and it wasn't aggressive enough.
+                    # User explicitly prioritized full removal over vocal
+                    # purity this round, so sharpened the mask cutoff
+                    # (-3.0 -> -6.0: a bin needs a clearly higher vocal-
+                    # to-instrument ratio before it's let through at all).
+                    mask = np.clip(1.0 - np.exp(-6.0 * (snr**2.0)), 0.0, 1.0)
 
                     Zv_masked = Zv * mask
                     mag_v_masked = np.abs(Zv_masked)
-                    mag_v_clean = np.maximum(mag_v_masked - 1.2 * mag_i, 0.0)
+                    mag_v_clean = np.maximum(mag_v_masked - 2.2 * mag_i, 0.0)  # ROUND 9: was 1.2x, oud residue survived the weaker subtraction
                     phase_v = np.angle(Zv_masked)
                     Zv_clean = mag_v_clean * np.exp(1j * phase_v)
 
@@ -739,9 +752,9 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # moving-average smoothing pass, so the same drum-bleed
                     # suppression happens but the gain ramps instead of
                     # switching — removing the click while keeping the mute.
-                    instrumental_dominant = (mag_i > (0.35 * mag_v + 1e-6))
+                    instrumental_dominant = (mag_i > (0.2 * mag_v + 1e-6))  # ROUND 9: was 0.35, too lenient toward tonal instrument harmonics
                     broadband_frac = np.mean(instrumental_dominant, axis=0)
-                    frame_gate = 1.0 / (1.0 + np.exp(22.0 * (broadband_frac - 0.5)))
+                    frame_gate = 1.0 / (1.0 + np.exp(22.0 * (broadband_frac - 0.3)))  # ROUND 9: was 0.5, now trips on smaller instrument-dominated fractions
                     if frame_gate.shape[0] >= 5:
                         kernel = np.ones(5, dtype=np.float32) / 5.0
                         frame_gate = np.convolve(frame_gate, kernel, mode='same')
@@ -816,7 +829,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     frame_instr_energy = np.mean(mag_i, axis=0)
                     frame_snr = frame_vocal_energy / (frame_instr_energy + 1e-6)
                     vocal_presence = np.clip(frame_snr / 5.0, 0.0, 1.0)
-                    frame_gate = np.maximum(frame_gate, vocal_presence * 0.15)
+                    frame_gate = np.maximum(frame_gate, vocal_presence * 0.05)  # ROUND 9: was 0.15 -- that floor was exactly why bleed survived DURING singing (most of a song). User explicitly accepts more vocal-purity cost for full removal.
 
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
