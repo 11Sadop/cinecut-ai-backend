@@ -607,16 +607,19 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
             waveform = (waveform - ref.mean()) / (ref.std() + 1e-8)
             
             with torch.no_grad():
-                # shifts=1 (not 2): the "zero bleed" guarantee for every
-                # instrument (drums included) comes from the STFT spectral
-                # mask + subtraction stage right below, which runs
-                # regardless of how many shifts Demucs itself used — shifts
-                # mainly smooths boundary artifacts, it doesn't materially
-                # change whether bleed survives, since the debleed stage
-                # scrubs whatever comes out of this step anyway. Halving
-                # shifts here roughly halves this step's GPU time with no
-                # loss to the actual bleed-removal guarantee.
-                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=1, split=True, overlap=0.25)[0]
+                # shifts=2, overlap=0.5 (was shifts=1/overlap=0.25): reported
+                # complaint after multiple bleed-removal rounds was that guitar/
+                # drums/oud were STILL audible -- the debleed spectral-subtraction
+                # stage below cleans up whatever Demucs outputs, but it can only
+                # subtract what Demucs actually separated out in the first place.
+                # shifts=2 runs the model twice with small random input shifts and
+                # averages the result (Demucs' own test-time augmentation), and
+                # overlap=0.5 doubles the overlap between the chunks split=True
+                # processes, both directly improving separation accuracy (less
+                # instrument bleed into the vocal stem to begin with) at the cost
+                # of roughly 2x GPU time on this one step -- a small, justified
+                # trade given this step alone was only ~4.8s.
+                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=2, split=True, overlap=0.5)[0]
             
             sources = sources * ref.std() + ref.mean()
             stems = model_demucs.sources
