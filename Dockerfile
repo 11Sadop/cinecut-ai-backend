@@ -5,9 +5,24 @@
 # ─────────────────────────────────────────────────────────────────────────
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
+# ROOT CAUSE FOUND (real RunPod job logs): every AI-upscale job was
+# silently falling back to CPU libx264 encoding at full 4K instead of
+# hardware h264_nvenc -- _test_nvenc_available() in ai_engine.py kept
+# returning False on every worker. The nvidia/cuda base image only
+# advertises "compute,utility" driver capabilities by default, which is
+# enough for PyTorch/CUDA compute (that's why ESRGAN itself correctly
+# loaded on CUDA) but NOT enough to expose the NVENC hardware video
+# encode block inside the container -- that needs the "video"
+# capability explicitly requested, or ffmpeg's nvenc init call fails
+# even though the GPU has working NVENC hardware. CPU-encoding a full
+# real-time 4K stream is expensive on its own, and was very likely the
+# actual dominant cost this whole time (not the minterpolate filter
+# mode, which barely moved observed per-frame timing across 3 rounds of
+# tuning it -- 3.1-3.4s/frame stayed roughly constant regardless).
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 
 # Python 3.10 + ffmpeg + build tools
 RUN apt-get update && apt-get install -y \
