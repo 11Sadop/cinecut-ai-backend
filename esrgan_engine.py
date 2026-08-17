@@ -172,11 +172,25 @@ def upscale_frame_4x(frame_rgb: np.ndarray, tile: int = 640, tile_pad: int = 16)
 
 
 def upscale_frame_to_size(frame_rgb: np.ndarray, target_w: int, target_h: int) -> np.ndarray:
-    """Real-ESRGAN gives a fixed 4x. If the requested target resolution
-    isn't exactly 4x the source, do the 4x AI pass first (so all fine
-    detail is genuinely reconstructed by the network) then a final
-    high-quality Lanczos resize down/up to the exact requested pixels."""
+    """Real-ESRGAN gives a fixed 4x. The old version always ran the full 4x
+    AI pass on the raw source frame, THEN resized the result down to the
+    requested target -- wasteful whenever the source is already bigger than
+    target/4 (e.g. a common 1920x1080 source only needs a 2x upscale to
+    reach 4K, but this used to force a full 4x pass to a temporary 8K
+    (7680x4320) frame through the neural net before immediately discarding
+    3/4 of it). That wasted GPU compute is a real contributor to slow
+    upscale jobs. Fix: pre-scale the INPUT down to target_size/4 first
+    whenever the source is larger than that, so the network's native 4x
+    output lands exactly on the requested resolution with zero wasted
+    computation and zero discarded detail. If the source is already
+    smaller than target/4 (a genuinely low-res clip), leave it alone so the
+    AI pass still contributes real reconstructed detail before the final
+    resize, same as before."""
     import cv2
+    h, w = frame_rgb.shape[:2]
+    pre_w, pre_h = max(1, target_w // 4), max(1, target_h // 4)
+    if w > pre_w or h > pre_h:
+        frame_rgb = cv2.resize(frame_rgb, (pre_w, pre_h), interpolation=cv2.INTER_AREA)
     up = upscale_frame_4x(frame_rgb)
     uh, uw = up.shape[:2]
     if uw == target_w and uh == target_h:
