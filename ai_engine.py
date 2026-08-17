@@ -268,7 +268,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     # Interpolation, aobmc = adaptive overlapped block motion compensation)
     # — genuinely estimates and interpolates motion vectors between frames,
     # unlike a naive `fps=` filter which just duplicates/drops frames.
-    minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=aobmc:vsbmc=1"
+    minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=obmc"  # was mc_mode=aobmc:vsbmc=1 -- much slower for a similar genuine motion-compensated result
     vf_str = f"{minterp},{_color_eq_filter(color_mode)}"
 
     duration_sec = (total_frames / src_fps) if (total_frames and src_fps) else None
@@ -384,7 +384,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     return ok_final
 
 
-def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k", fps="120", color_mode="face", speed="fast", progress_cb=None):
+def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k", fps="60", color_mode="face", speed="fast", progress_cb=None):
     """
     Main entry point (unchanged signature — server.py calls this exactly
     as before). `speed` now genuinely changes the pipeline:
@@ -398,7 +398,7 @@ def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k"
     LAST_ERROR = None
     t0 = time.time()
     target_w, target_h = _target_dims(resolution)
-    target_fps = int(fps) if fps in ["24", "30", "60", "120"] else 120
+    target_fps = int(fps) if fps in ["24", "30", "60", "120"] else 60  # was 120 -- that default made every job (including ones where the caller sent no/invalid fps) run the most expensive motion-interpolation path
 
     print(f"⚡ CineCut Upscale Engine: mode={speed}, res={resolution}({target_w}x{target_h}), fps={fps}, color={color_mode}")
 
