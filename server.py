@@ -720,11 +720,11 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # purity this round, so sharpened the mask cutoff
                     # (-3.0 -> -6.0: a bin needs a clearly higher vocal-
                     # to-instrument ratio before it's let through at all).
-                    mask = np.clip(1.0 - np.exp(-6.0 * (snr**2.0)), 0.0, 1.0)
+                    mask = np.clip(1.0 - np.exp(-3.5 * (snr**2.0)), 0.0, 1.0)  # ROUND 12: was -6.0
 
                     Zv_masked = Zv * mask
                     mag_v_masked = np.abs(Zv_masked)
-                    mag_v_clean = np.maximum(mag_v_masked - 3.2 * mag_i, 0.0)  # ROUND 10: was 2.2x -- still audible, pushing further
+                    mag_v_clean = np.maximum(mag_v_masked - 1.8 * mag_i, 0.0)  # ROUND 12: was 3.2x  # ROUND 10: was 2.2x -- still audible, pushing further
                     phase_v = np.angle(Zv_masked)
                     Zv_clean = mag_v_clean * np.exp(1j * phase_v)
 
@@ -752,9 +752,9 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # moving-average smoothing pass, so the same drum-bleed
                     # suppression happens but the gain ramps instead of
                     # switching — removing the click while keeping the mute.
-                    instrumental_dominant = (mag_i > (0.2 * mag_v + 1e-6))  # ROUND 9: was 0.35, too lenient toward tonal instrument harmonics
+                    instrumental_dominant = (mag_i > (0.3 * mag_v + 1e-6))  # ROUND 12: was 0.2  # ROUND 9: was 0.35, too lenient toward tonal instrument harmonics
                     broadband_frac = np.mean(instrumental_dominant, axis=0)
-                    frame_gate = 1.0 / (1.0 + np.exp(22.0 * (broadband_frac - 0.3)))  # ROUND 9: was 0.5, now trips on smaller instrument-dominated fractions
+                    frame_gate = 1.0 / (1.0 + np.exp(22.0 * (broadband_frac - 0.4)))  # ROUND 12: was 0.3  # ROUND 9: was 0.5, now trips on smaller instrument-dominated fractions
                     if frame_gate.shape[0] >= 5:
                         kernel = np.ones(5, dtype=np.float32) / 5.0
                         frame_gate = np.convolve(frame_gate, kernel, mode='same')
@@ -832,7 +832,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     frame_instr_energy = np.mean(mag_i, axis=0)
                     frame_snr = frame_vocal_energy / (frame_instr_energy + 1e-6)
                     vocal_presence = np.clip(frame_snr / 5.0, 0.0, 1.0)
-                    frame_gate = np.maximum(frame_gate, vocal_presence * 0.05)  # ROUND 9: was 0.15 -- that floor was exactly why bleed survived DURING singing (most of a song). User explicitly accepts more vocal-purity cost for full removal.
+                    frame_gate = np.maximum(frame_gate, vocal_presence * 0.3)  # ROUND 12: was 0.05  # ROUND 9: was 0.15 -- that floor was exactly why bleed survived DURING singing (most of a song). User explicitly accepts more vocal-purity cost for full removal.
 
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
