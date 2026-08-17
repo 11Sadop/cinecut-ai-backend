@@ -268,7 +268,25 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     # Interpolation, aobmc = adaptive overlapped block motion compensation)
     # — genuinely estimates and interpolates motion vectors between frames,
     # unlike a naive `fps=` filter which just duplicates/drops frames.
-    minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=obmc"  # was mc_mode=aobmc:vsbmc=1 -- much slower for a similar genuine motion-compensated result
+    minterp = f"minterpolate=fps={target_fps}:mi_mode=blend"  # was mi_mode=mci:mc_mode=obmc.
+    # REAL production evidence (RunPod request f182a36e...): a 14-second,
+    # 640x360 source clip (already small -- the earlier esrgan_engine.py
+    # "wasted compute" fix does NOT apply here, source is already smaller
+    # than target/4) was cancelled by the user after 23m33s, having only
+    # reached frame 420/440. That is ~3.2s per single 640x360 frame, which
+    # is far too slow to be the Real-ESRGAN forward pass alone on a modern
+    # GPU -- the raw frames are piped into this ffmpeg process's stdin at
+    # ~25MB/frame (4K rawvideo), so if ffmpeg can't keep up, the pipe
+    # backpressures and the whole job's throughput becomes gated by
+    # ffmpeg's minterpolate stage specifically. mi_mode=mci does real
+    # motion-vector search, and that search's cost scales with the
+    # resolution it runs on -- here that's the FULL 4K output frame, not
+    # the small source frame, which is drastically more expensive than
+    # typical mci benchmarks (usually quoted at 1080p or below). Switching
+    # to mi_mode=blend drops the motion search entirely in favor of a
+    # weighted cross-fade between the two surrounding real frames -- still
+    # genuinely new interpolated content (not naive duplication), just
+    # without the mci cost that was making 4K jobs impractically slow.
     vf_str = f"{minterp},{_color_eq_filter(color_mode)}"
 
     duration_sec = (total_frames / src_fps) if (total_frames and src_fps) else None
