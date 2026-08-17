@@ -1189,7 +1189,7 @@ async function run4kUpscale() {
   // still legitimately working). Raised to a realistic baseline, and see the
   // stage-message cycler below for what happens once even THIS estimate
   // runs out on a longer clip.
-  startProgress(240, `جاري ترقية دقة الفيديو لـ 4K و 120 FPS عبر كرت الشاشة CUDA...`);
+  startProgress(240, `جاري ترقية دقة الفيديو لـ 4K و 120 FPS عبر كرت الشاشة CUDA... (المعالجة الحقيقية بالذكاء الاصطناعي قد تستغرق حتى 30 دقيقة للمقاطع الطويلة، النسبة قد تثبت عند 96% وهذا طبيعي أثناء المعالجة الفعلية -- لا تُغلق الصفحة)`);
 
   // RunPod's job-status polling does not expose real mid-job frame progress
   // (verified: RunPod's own /status endpoint only returns
@@ -1279,7 +1279,7 @@ async function run4kUpscale() {
       // working (especially after a cold worker start). Raised to match
       // the other heavy GPU operations so real processing time is no
       // longer mistaken for a failure.
-      const maxWait = 20 * 60 * 1000;
+      const maxWait = 45 * 60 * 1000;
 
       await new Promise((resolve, reject) => {
         const poller = setInterval(async () => {
@@ -1750,7 +1750,7 @@ async function runBackgroundRemoval() {
       state.activeJobId = jobId;
       let elapsed = 0;
       const pollInterval = 1500;
-      const maxWait = 20 * 60 * 1000;
+      const maxWait = 45 * 60 * 1000;
 
       data = await new Promise((resolve, reject) => {
         const poller = setInterval(async () => {
