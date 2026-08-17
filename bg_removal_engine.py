@@ -140,7 +140,28 @@ def _detect_text_mask(pil_img: Image.Image) -> np.ndarray:
         in_border_band = cy < top_band or cy > bottom_band
         glyph_count = sum(1 for (gx, gy) in glyph_boxes if x <= gx <= x + rw and y <= gy <= y + rh)
         min_glyphs_needed = 3 if in_border_band else 5
-        if glyph_count < min_glyphs_needed:
+        # REPORTED WITH A REAL BEFORE/AFTER SCREENSHOT: a large Arabic
+        # title ("دعاء قبل تنام...") sitting in the top border band was
+        # completely erased. Root cause: Arabic script is CURSIVE/CONNECTED
+        # -- MSER usually merges an entire word (sometimes several words)
+        # into ONE blob instead of one blob per letter the way it does for
+        # spaced-out Latin captions. The glyph-clustering requirement above
+        # (glyph_count >= 3) was implicitly assuming "many small separate
+        # glyphs", which structurally can't be satisfied by connected
+        # script -- so real Arabic titles/captions in the border band were
+        # being rejected by design, not by accident. Fix: also accept a
+        # single large solid block if it sits in the border band, is wide
+        # enough to plausibly be a text line/word (not a stray corner
+        # artifact), and has a title/caption-like aspect ratio (wide, not
+        # tall) -- no glyph-clustering requirement needed for this path,
+        # since border-band + size + shape is already a strong signal on
+        # its own and mistakes here only over-protect (keep too much
+        # opaque), never destroy real background removal elsewhere in the
+        # frame like the old unrestricted heuristic used to.
+        is_large_arabic_block = (
+            in_border_band and rw >= 0.15 * w and rh <= max(20, int(h * 0.18)) and (rw / float(rh)) >= 1.5
+        )
+        if glyph_count < min_glyphs_needed and not is_large_arabic_block:
             continue
         cv2.rectangle(clean_mask, (x, y), (x + rw, y + rh), 255, -1)
     return clean_mask
