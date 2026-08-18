@@ -460,3 +460,5 @@ def process_video_ai_upscale_and_motion(input_path, output_path, resolution="4k"
     return ok
 
 # BUILD-FORCE-2: sync marker to force one final unambiguous RunPod build containing ROUND13 debleed + NVENC diagnostics/ultrafast fixes together.
+
+# BUILD-FORCE-3: sync marker to force one final unambiguous RunPod build containing ROUND14 frequency-dependent debleed (server.py) + ROUND14 NVENC probe resolution fix together.
