@@ -662,6 +662,24 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     i_ch = i_data[:min_l, ch]
                     f, t_s, Zv = scipy.signal.stft(v_ch, fs=sr_v, nperseg=2048, noverlap=1536)
                     _, _, Zi = scipy.signal.stft(i_ch, fs=sr_v, nperseg=2048, noverlap=1536)
+                    # ROUND 14 FIX (reported: singer's voice corrupted/damaged AND oud/drums still
+                    # audible in the SAME clip -- both complaints at once). Root cause: every debleed
+                    # round since ROUND 7 tuned mask_steepness/sub_multiplier as single flat constants
+                    # applied identically to EVERY frequency bin from 0Hz to Nyquist. That forces one
+                    # tradeoff for the whole spectrum: raising aggressiveness to kill oud/drum harmonics
+                    # also nukes the vocal formant band sharing that same range (audible as "corrupted"
+                    # voice), lowering it to protect the voice lets bass/treble instrument energy leak
+                    # straight through. Splitting the constants by frequency band lets bass (<150Hz,
+                    # almost pure kick/bass-guitar/oud-fundamental territory) and treble (>4000Hz,
+                    # cymbals/pick-attack/upper harmonics) get suppressed much harder while the core
+                    # vocal band (150-4000Hz, fundamentals+formants+most intelligibility) stays at the
+                    # gentler ROUND13 level -- attacking both complaints at once instead of trading one
+                    # for the other.
+                    freq_hz = f
+                    band_gentle = (freq_hz >= 150.0) & (freq_hz <= 4000.0)
+                    band_bass = freq_hz < 150.0
+                    mask_steepness = np.where(band_gentle, 4.5, np.where(band_bass, 8.0, 6.0)).reshape(-1, 1)
+                    sub_multiplier = np.where(band_gentle, 2.4, np.where(band_bass, 3.2, 2.8)).reshape(-1, 1)
                     mag_v = np.abs(Zv)
                     mag_i = np.abs(Zi)
                     
@@ -720,11 +738,11 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # purity this round, so sharpened the mask cutoff
                     # (-3.0 -> -6.0: a bin needs a clearly higher vocal-
                     # to-instrument ratio before it's let through at all).
-                    mask = np.clip(1.0 - np.exp(-4.5 * (snr**2.0)), 0.0, 1.0)  # ROUND 13: was -3.5 (ROUND12 too lenient -- user reported 'ما شال الموسيقى' after rebalance, splitting the difference between ROUND12's -3.5 and the pre-ROUND12 -6.0 that broke vocal quality)
+                    mask = np.clip(1.0 - np.exp(-mask_steepness * (snr**2.0)), 0.0, 1.0)  # ROUND 14: frequency-dependent steepness (see band_gentle/mask_steepness above) -- was flat -4.5 everywhere, same root issue as the subtraction multiplier below.
 
                     Zv_masked = Zv * mask
                     mag_v_masked = np.abs(Zv_masked)
-                    mag_v_clean = np.maximum(mag_v_masked - 2.4 * mag_i, 0.0)  # ROUND 13: was 1.8x (ROUND12 too lenient)  # ROUND 10: was 2.2x -- still audible, pushing further
+                    mag_v_clean = np.maximum(mag_v_masked - sub_multiplier * mag_i, 0.0)  # ROUND 14: frequency-dependent multiplier (see band_gentle/sub_multiplier above) -- was flat 2.4x everywhere. ROUND 11-13 kept oscillating between "kills oud but corrupts voice" and "protects voice but leaves oud" because one global scalar cannot serve both the bass/treble bands (where oud/drum/cymbal energy lives, safe to over-subtract) and the vocal formant band (150-4000Hz, needs the gentler ROUND13 value) at the same time.
                     phase_v = np.angle(Zv_masked)
                     Zv_clean = mag_v_clean * np.exp(1j * phase_v)
 
