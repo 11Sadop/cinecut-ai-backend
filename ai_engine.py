@@ -217,7 +217,7 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
     cmd = [
         FFMPEG_PATH, "-y", "-i", input_path,
         "-vf", vf_str,
-        "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main", "-level", "4.1",
+        "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", b_v, "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main",  # ROUND 14 FIX: removed hardcoded "-level 4.1" -- REAL EVIDENCE from a production job (Aug 18) shows "[h264_nvenc] InitializeEncoder failed: invalid param (9): Invalid Level" as soon as real frames hit NVENC. Level 4.1 tops out around 1920x1080 -- far below the 3840x2160 (4K) target this pipeline outputs, so NVENC correctly rejects it (libx264 is far more lenient about level mismatches, which is why this never surfaced before now that NVENC is actually being reached). Dropping the flag lets ffmpeg auto-select a level that fits the real output resolution/fps instead of hardcoding one sized for 1080p.
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
@@ -231,7 +231,7 @@ def _process_fast_ffmpeg_only(input_path, output_path, target_w, target_h, targe
     cmd_cpu = [
         FFMPEG_PATH, "-y", "-i", input_path,
         "-vf", vf_str,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main", "-level", "4.1",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-maxrate", maxrate, "-bufsize", bufsize, "-profile:v", "main",  # ROUND 14: dropped hardcoded "-level 4.1" here too for consistency with the NVENC fix above (libx264 is more lenient about level mismatches so this one wasn't the confirmed cause, but the same 1080p-sized level ceiling could still bite at higher output resolutions)
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
@@ -334,7 +334,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
         "-map", "0:v:0", "-map", "1:a:0?",
         "-vf", vf_str,
     ] + venc_args + [
-        "-profile:v", "main", "-level", "4.1",
+        "-profile:v", "main",  # ROUND 14 FIX: removed hardcoded "-level 4.1" -- same real bug as the fast-pipeline encoder above, confirmed via a real production job's exact ffmpeg stderr ("Invalid Level"). This is the streaming AI-upscale path (the one that failed in production), so this is the fix that actually matters for the reported bug.
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:a", "aac", "-ar", "44100", "-b:a", "192k",
