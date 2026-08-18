@@ -81,8 +81,19 @@ def _test_nvenc_available():
     unavailable only after already spending minutes running every frame
     through Real-ESRGAN."""
     try:
+        # ROUND 14 FIX -- REAL EVIDENCE from a production job log (Aug 18):
+        # the probe itself was failing, not real NVENC access. The ffmpeg
+        # stderr this same diagnostic printed last round showed the exact
+        # reason: "[h264_nvenc] InitializeEncoder failed: invalid param (8):
+        # Frame Dimension less than the minimum supported value." The test
+        # clip below used to be a tiny 64x64 frame -- too small for this
+        # GPU/driver's NVENC minimum encode dimensions, so the probe always
+        # failed and every real job (always >=360p, usually 4K) silently
+        # fell back to CPU libx264 even though NVENC itself works fine at
+        # real resolutions. Bumped the probe to 1280x720 -- still a ~0.1s
+        # test, but comfortably above any GPU generation's minimum.
         cmd = [
-            FFMPEG_PATH, "-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.1",
+            FFMPEG_PATH, "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=0.1",
             "-c:v", "h264_nvenc", "-f", "null", "-"
         ]
         res = subprocess.run(cmd, capture_output=True, timeout=20)
