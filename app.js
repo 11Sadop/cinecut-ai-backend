@@ -980,9 +980,15 @@ async function runAudioSeparation(isUpscale4k = false, isDenoise = false) {
       const badgeBox = document.getElementById('video-spec-badge-box');
       if (badgeBox) {
         if (isUpscaleChecked) {
+          // ROUND 15 FIX: this badge used to hardcode "3840x2160 (4K UHD)" and
+          // "120 FPS" no matter what the user actually picked -- a 720p/24fps job
+          // still displayed a 4K/120FPS badge on the finished result, which is a
+          // false claim about what was actually delivered. Now reflects the real
+          // selected resVal/fpsVal.
+          const _resLabel = resVal === '4k' ? '3840×2160 (4K UHD)' : (resVal === '1080' ? '1920×1080 (Full HD)' : '1280×720 (HD)');
           badgeBox.innerHTML = `
-            <span class="suite-badge" style="background:rgba(0,240,255,0.15); color:var(--cyan); border:1px solid var(--cyan); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-award"></i> الدقة: 3840×2160 (4K UHD)</span>
-            <span class="suite-badge" style="background:rgba(255,200,0,0.15); color:var(--gold); border:1px solid var(--gold); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-bolt"></i> السرعة: 120 FPS</span>
+            <span class="suite-badge" style="background:rgba(0,240,255,0.15); color:var(--cyan); border:1px solid var(--cyan); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-award"></i> الدقة: ${_resLabel}</span>
+            <span class="suite-badge" style="background:rgba(255,200,0,0.15); color:var(--gold); border:1px solid var(--gold); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-bolt"></i> السرعة: ${fpsVal} FPS</span>
             <span class="suite-badge" style="background:rgba(0,255,150,0.15); color:var(--green); border:1px solid var(--green); font-weight:700; padding:6px 12px; border-radius:8px; font-size:0.85rem;"><i class="fa-solid fa-wand-magic-sparkles"></i> NVENC CUDA 4K Hardware Engine</span>
           `;
         } else {
