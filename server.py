@@ -755,6 +755,25 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # User explicitly prioritized full removal over vocal
                     # purity this round, so sharpened the mask cutoff
                     # (-3.0 -> -6.0: a bin needs a clearly higher vocal-
+                    # ROUND 16 FIX (reported again: voice still corrupted AND oud/drums still
+                    # audible in the SAME clip -- ROUND 14's frequency-band split wasn't enough
+                    # because oud's fundamental and most of its harmonics sit INSIDE the
+                    # 150-4000Hz vocal band itself, so keeping that whole band gentle (to
+                    # protect vocal formants) also protects oud bleed living in the same band.
+                    # The real distinguishing signal isn't frequency alone -- it's TIME: a
+                    # sustained oud/guitar drone note dominates the same bin across many
+                    # consecutive frames, while a vocal formant only occupies that bin briefly
+                    # as pitch/vowel changes. Measure, per frequency bin, the fraction of
+                    # frames across the whole clip where the instrument clearly dominates
+                    # (snr < 1). A bin that's instrument-dominant most of the time is a
+                    # persistent tonal bleed (oud/guitar drone), not an occasional formant
+                    # collision, so boost its suppression even inside the gentle vocal band --
+                    # bins that are only briefly instrument-dominant (real formants) are left
+                    # alone at the protective ROUND13 level, so voice quality is not sacrificed.
+                    bleed_persistence = np.mean(snr < 1.0, axis=1, keepdims=True)
+                    persistent_bleed = bleed_persistence > 0.55
+                    mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 7.5), mask_steepness)
+                    sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 3.0), sub_multiplier)
                     # to-instrument ratio before it's let through at all).
                     mask = np.clip(1.0 - np.exp(-mask_steepness * (snr**2.0)), 0.0, 1.0)  # ROUND 14: frequency-dependent steepness (see band_gentle/mask_steepness above) -- was flat -4.5 everywhere, same root issue as the subtraction multiplier below.
 
