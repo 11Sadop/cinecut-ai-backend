@@ -556,6 +556,24 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
 
     wav_path = to_stereo_wav_44k(raw_path)
     if wav_path is None or not os.path.isfile(wav_path):
+        # ROUND 15 FIX: distinguish "video genuinely has no audio track" (fine --
+        # deliver the clean/upscaled video with no stems) from "video HAS audio
+        # but extraction itself failed" (a real bug). The old code treated both
+        # identically and silently returned status:success with vocals_url and
+        # music_url both None, so a real extraction failure on a normal song
+        # clip looked to the user exactly like "started, waited a minute,
+        # nothing happened" with zero visible error (reported: separation on a
+        # downloaded clip "اخذ دقيقة وما صار شيء"). Probe the source file
+        # directly for an audio stream so a genuine extraction failure raises a
+        # clear, visible error instead of silently returning an empty result.
+        _has_audio_stream = False
+        try:
+            _probe = subprocess.run([FFMPEG_PATH, "-i", raw_path], capture_output=True, timeout=30) if FFMPEG_PATH else None
+            _has_audio_stream = bool(_probe) and b"Audio:" in (_probe.stderr or b"")
+        except Exception:
+            pass
+        if _has_audio_stream:
+            raise HTTPException(500, "تعذر استخراج الصوت من هذا الملف رغم وجود مسار صوتي فيه — جرّب ملفاً آخر أو أعد المحاولة")
         print(f"⚠️ Notice: Video file has no audio stream or audio extraction failed. Processing video 4K upscale directly.")
         # If upscale requested
         if resolution != "none":
