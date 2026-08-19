@@ -600,8 +600,12 @@ window.openToolModal = function(toolName) {
     elUpscale.dataset.panelSyncBound = '1';
   }
 
-  const res4kRadio = document.getElementById('res-4k');
-  if (res4kRadio) res4kRadio.checked = true;
+  // BUG FIX: this used to force-check the 4K radio on every single modal
+  // open, silently overriding whatever resolution the user (or the page's own
+  // HTML default) had last selected -- so changing the default resolution in
+  // index.html had zero real effect, since this ran again the moment any tool
+  // modal opened. Removed: leave the resolution radios exactly as the user or
+  // the HTML default last left them, same as every other setting on this form.
 
   const dlOnlyRow = document.getElementById('chk-row-download-only');
   if (dlOnlyRow) dlOnlyRow.style.display = (toolName === 'download') ? 'flex' : 'none';
