@@ -770,10 +770,20 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # collision, so boost its suppression even inside the gentle vocal band --
                     # bins that are only briefly instrument-dominant (real formants) are left
                     # alone at the protective ROUND13 level, so voice quality is not sacrificed.
+                    # ROUND 17 FIX (reported again after ROUND 16: process finished cleanly this
+                    # time with no crash/error, but oud/drum residue is still audible -- ROUND 16's
+                    # persistence threshold (0.55 = bin must be instrument-dominant in >55% of frames)
+                    # and boost strength (steepness>=7.5, sub>=3.0) were too conservative to fully kill
+                    # a real oud drone's residue, even though the temporal-persistence mechanism itself
+                    # is working correctly (no new voice corruption was reported this round). User has
+                    # repeatedly prioritized full bleed removal over vocal purity across rounds 9-17, so
+                    # lowering the threshold to catch more sustained-tone bins (0.55->0.35: a bin only
+                    # needs to be instrument-dominant in >35% of frames, not >55%, to count as a
+                    # persistent drone) and raising the boost ceiling higher (7.5->9.5, 3.0->4.0).
                     bleed_persistence = np.mean(snr < 1.0, axis=1, keepdims=True)
-                    persistent_bleed = bleed_persistence > 0.55
-                    mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 7.5), mask_steepness)
-                    sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 3.0), sub_multiplier)
+                    persistent_bleed = bleed_persistence > 0.35
+                    mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 9.5), mask_steepness)
+                    sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 4.0), sub_multiplier)
                     # to-instrument ratio before it's let through at all).
                     mask = np.clip(1.0 - np.exp(-mask_steepness * (snr**2.0)), 0.0, 1.0)  # ROUND 14: frequency-dependent steepness (see band_gentle/mask_steepness above) -- was flat -4.5 everywhere, same root issue as the subtraction multiplier below.
 
