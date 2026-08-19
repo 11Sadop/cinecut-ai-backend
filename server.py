@@ -637,7 +637,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                 # instrument bleed into the vocal stem to begin with) at the cost
                 # of roughly 2x GPU time on this one step -- a small, justified
                 # trade given this step alone was only ~4.8s.
-                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=3, split=True, overlap=0.5)[0]  # ROUND 10: was shifts=2 -- reported drums/oud still audible after ROUND 9; more shifts = less bleed leaking into the vocals stem at the source, which no post-processing below can fix once it is already there
+                sources = apply_model(model_demucs, waveform[None], device=DEVICE, shifts=6, split=True, overlap=0.5)[0]  # ROUND 19: was shifts=3 -- reported oud/instrument bleed STILL audible during singing itself (hardest case: shared time-frequency bins with vocal formants) AND slight voice cutting from ROUND 17's aggressive masking. Post-hoc masking can only trade bleed-removal against voice-damage once bleed is baked into the vocals stem; the only lever that helps WITHOUT costing voice quality is separating more cleanly at the source. Raising shifts (randomized-shift ensemble averaging inside Demucs) reduces source-level bleed at a pure compute cost.
             
             sources = sources * ref.std() + ref.mean()
             stems = model_demucs.sources
@@ -780,10 +780,10 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # lowering the threshold to catch more sustained-tone bins (0.55->0.35: a bin only
                     # needs to be instrument-dominant in >35% of frames, not >55%, to count as a
                     # persistent drone) and raising the boost ceiling higher (7.5->9.5, 3.0->4.0).
-                    bleed_persistence = np.mean(snr < 1.0, axis=1, keepdims=True)
-                    persistent_bleed = bleed_persistence > 0.35
-                    mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 9.5), mask_steepness)
-                    sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 4.0), sub_multiplier)
+                                        bleed_persistence = np.mean(snr < 1.0, axis=1, keepdims=True)
+                    persistent_bleed = bleed_persistence > 0.45  # ROUND 19: was 0.35 -- ROUND 17's masking, combined with the shifts=6 source-level fix above, was reported to slightly cut/distort the singer's voice. Since bleed is now attacked more effectively at the source (before this masking even runs), this stage can afford to back off from being maximally aggressive without giving up the bleed-removal gains.
+                    mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 8.5), mask_steepness)  # ROUND 19: was 9.5
+                    sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 3.5), sub_multiplier)  # ROUND 19: was 4.0
                     # to-instrument ratio before it's let through at all).
                     mask = np.clip(1.0 - np.exp(-mask_steepness * (snr**2.0)), 0.0, 1.0)  # ROUND 14: frequency-dependent steepness (see band_gentle/mask_steepness above) -- was flat -4.5 everywhere, same root issue as the subtraction multiplier below.
 
