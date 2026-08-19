@@ -1228,7 +1228,9 @@ async function run4kUpscale() {
   // still legitimately working). Raised to a realistic baseline, and see the
   // stage-message cycler below for what happens once even THIS estimate
   // runs out on a longer clip.
-  startProgress(240, `جاري ترقية دقة الفيديو لـ 4K و 120 FPS عبر كرت الشاشة CUDA... (المعالجة الحقيقية بالذكاء الاصطناعي قد تستغرق حتى 30 دقيقة للمقاطع الطويلة، النسبة قد تثبت عند 96% وهذا طبيعي أثناء المعالجة الفعلية -- لا تُغلق الصفحة)`);
+  const resLabel = resVal === '4k' ? '4K' : (resVal === '1080' ? '1080p' : '720p');
+  const speedLabel = speedVal === 'ai' ? 'بالذكاء الاصطناعي الحقيقي (Real-ESRGAN)' : 'بالتحسين السريع';
+  startProgress(240, `جاري ترقية دقة الفيديو لـ ${resLabel} و ${fpsVal} FPS عبر كرت الشاشة CUDA... (المعالجة ${speedLabel} قد تستغرق بضع دقائق حسب طول المقطع، النسبة قد تثبت عند 96% وهذا طبيعي أثناء المعالجة الفعلية -- لا تُغلق الصفحة)`);
 
   // RunPod's job-status polling does not expose real mid-job frame progress
   // (verified: RunPod's own /status endpoint only returns
