@@ -294,7 +294,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     # Interpolation, aobmc = adaptive overlapped block motion compensation)
     # — genuinely estimates and interpolates motion vectors between frames,
     # unlike a naive `fps=` filter which just duplicates/drops frames.
-    minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=obmc:vsbmc=0"  # ROUND 2: was mi_mode=blend.
+    minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=obmc:vsbmc=0" if target_fps > (src_fps + 0.5) else None  # ROUND 18 FIX: this used to run unconditionally even when target_fps already equalled (or was below) the source fps -- i.e. paying the full motion-compensated-interpolation cost for zero actual FPS gain. Confirmed root cause of duration complaints is really the CPU x264 4K encode (see venc_args comment below), but this filter was still pure wasted GPU/CPU work whenever no real interpolation was needed, and every bit counts. Only build the filter when we are actually increasing the frame rate.  # ROUND 2: was mi_mode=blend.
     # REPORTED AGAIN after switching to blend: "quality is bad" (رفع الجودة
     # سيئ). Root cause of the complaint: mi_mode=blend is not real motion-
     # compensated interpolation at all -- it is a plain weighted cross-
@@ -313,7 +313,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     # genuine per-block motion vector estimation (no ghosting), just
     # without the two most expensive refinement passes that combined with
     # aobmc+vsbmc=1 at full 4K to produce the original 23m33s job.
-    vf_str = f"{minterp},{_color_eq_filter(color_mode)}"
+    vf_str = f"{minterp},{_color_eq_filter(color_mode)}" if minterp else _color_eq_filter(color_mode)
 
     duration_sec = (total_frames / src_fps) if (total_frames and src_fps) else None
     kbps = _adaptive_video_kbps(duration_sec)
