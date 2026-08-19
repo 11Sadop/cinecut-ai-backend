@@ -575,10 +575,30 @@ window.openToolModal = function(toolName) {
   if (elStem) elStem.checked = true;
 
   const elUpscale = document.getElementById('chk-op-upscale');
-  if (elUpscale) elUpscale.checked = (toolName === 'upscale');
+  // BUG FIX (reported: opened the universal "download from any platform" tool,
+  // the upscale checkbox was checked, but no resolution/fps/speed options ever
+  // appeared -- so the job silently ran on whatever hidden default was last set,
+  // with zero way to see or change it). Root cause: the quality-settings panel's
+  // visibility was hard-wired to `toolName === 'upscale'` only, so it stayed
+  // permanently hidden for every other tool (like 'download') even when its own
+  // checkbox was checked -- and nothing ever re-synced it if the checkbox was
+  // toggled by hand afterward, since only this one-time modal-open assignment
+  // ever touched it. Also, forcing checked=(toolName==='upscale') on every open
+  // silently unchecked a box the user had manually checked in a previous open of
+  // the same 'download' tool. Fix: only force the checked state for the
+  // dedicated 'upscale' tool card; leave the box exactly as the user (or the
+  // HTML default) last left it for every other tool, and make the panel's
+  // visibility a live function of the checkbox's actual current state via a
+  // change listener, not a one-time snapshot of toolName.
+  if (elUpscale && toolName === 'upscale') elUpscale.checked = true;
 
   const upPanel = document.getElementById('upscale-quality-panel');
-  if (upPanel) upPanel.style.display = (toolName === 'upscale') ? 'block' : 'none';
+  const syncUpscalePanel = () => { if (upPanel) upPanel.style.display = (elUpscale && elUpscale.checked) ? 'block' : 'none'; };
+  syncUpscalePanel();
+  if (elUpscale && !elUpscale.dataset.panelSyncBound) {
+    elUpscale.addEventListener('change', syncUpscalePanel);
+    elUpscale.dataset.panelSyncBound = '1';
+  }
 
   const res4kRadio = document.getElementById('res-4k');
   if (res4kRadio) res4kRadio.checked = true;
