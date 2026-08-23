@@ -184,11 +184,18 @@ def _target_dims(resolution):
 
 
 def _color_eq_filter(color_mode):
-    if color_mode in ["face", "pure"]:
-        return "eq=contrast=1.22:saturation=1.35:gamma=1.08"
-    elif color_mode == "vivid":
-        return "eq=contrast=1.28:saturation=1.45:gamma=1.08"
-    return "eq=contrast=1.15:saturation=1.22"
+    # ROUND 20 FIX: 'pure' is labeled in the UI as 'original video colors,
+    # unedited' but was mapped to the exact same aggressive eq filter as
+    # 'face' mode -- meaning picking 'pure' never actually did what its own
+    # label promised. Split it out to a genuinely neutral pass so the three
+    # modes are honest about what they do.
+    if color_mode == 'pure':
+        return 'eq=contrast=1.0:saturation=1.0:gamma=1.0'
+    if color_mode == 'face':
+        return 'eq=contrast=1.22:saturation=1.35:gamma=1.08'
+    elif color_mode == 'vivid':
+        return 'eq=contrast=1.28:saturation=1.45:gamma=1.08'
+    return 'eq=contrast=1.15:saturation=1.22'
 
 
 # ─────────────────────────────────────────────────────────────────────────
