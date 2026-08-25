@@ -172,25 +172,39 @@ def upscale_frame_4x(frame_rgb: np.ndarray, tile: int = 640, tile_pad: int = 16)
 
 
 def upscale_frame_to_size(frame_rgb: np.ndarray, target_w: int, target_h: int) -> np.ndarray:
-    """Real-ESRGAN gives a fixed 4x. The old version always ran the full 4x
-    AI pass on the raw source frame, THEN resized the result down to the
-    requested target -- wasteful whenever the source is already bigger than
-    target/4 (e.g. a common 1920x1080 source only needs a 2x upscale to
-    reach 4K, but this used to force a full 4x pass to a temporary 8K
-    (7680x4320) frame through the neural net before immediately discarding
-    3/4 of it). That wasted GPU compute is a real contributor to slow
-    upscale jobs. Fix: pre-scale the INPUT down to target_size/4 first
-    whenever the source is larger than that, so the network's native 4x
-    output lands exactly on the requested resolution with zero wasted
-    computation and zero discarded detail. If the source is already
-    smaller than target/4 (a genuinely low-res clip), leave it alone so the
-    AI pass still contributes real reconstructed detail before the final
-    resize, same as before."""
+    '''
+    ROUND 21 FIX (reported: real AI upscale mode is 'not actually raising
+    the quality'). Root cause: this function used to pre-downscale the
+    SOURCE frame down to target_w/4 x target_h/4 before running it through
+    the AI model, whenever the source was larger than that -- described in
+    the comment above as avoiding 'wasted compute'. Now that the default
+    target resolution is 1080p (see ai_engine.py ROUND 18/20), that
+    condition is true for almost every real clip: a completely normal
+    1920x1080 source is larger than 1080/4=270px, so it was being crushed
+    down to 480x270 FIRST and only THEN 'reconstructed' back up to
+    1920x1080 by the AI model. That throws away real detail before the
+    network ever sees it -- no model, however good, can perfectly recover
+    information that was already discarded, so the output looked the same
+    as (or softer than) the original source, never genuinely enhanced.
+    Fix: stop pre-shrinking based on the target resolution. Only protect
+    against pathologically large sources (where the 4x output tensor could
+    genuinely threaten GPU memory); every normal clip now runs through the
+    AI model at its real native resolution, so it has full source detail
+    to work with, and the result is resized to the exact target afterward.
+    This costs a bit more GPU inference time -- not the bottleneck (CPU
+    video encode is, per ai_engine.py's venc_args comment) -- in exchange
+    for output that is actually, honestly enhanced instead of just resized.
+    '''
     import cv2
     h, w = frame_rgb.shape[:2]
-    pre_w, pre_h = max(1, target_w // 4), max(1, target_h // 4)
-    if w > pre_w or h > pre_h:
-        frame_rgb = cv2.resize(frame_rgb, (pre_w, pre_h), interpolation=cv2.INTER_AREA)
+    SAFETY_CAP = 2560  # protects only against genuinely oversized sources
+    if w > SAFETY_CAP or h > SAFETY_CAP:
+        scale_down = min(SAFETY_CAP / w, SAFETY_CAP / h)
+        frame_rgb = cv2.resize(
+            frame_rgb,
+            (max(1, int(w * scale_down)), max(1, int(h * scale_down))),
+            interpolation=cv2.INTER_AREA
+        )
     up = upscale_frame_4x(frame_rgb)
     uh, uw = up.shape[:2]
     if uw == target_w and uh == target_h:
