@@ -780,7 +780,7 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # lowering the threshold to catch more sustained-tone bins (0.55->0.35: a bin only
                     # needs to be instrument-dominant in >35% of frames, not >55%, to count as a
                     # persistent drone) and raising the boost ceiling higher (7.5->9.5, 3.0->4.0).
-                                        bleed_persistence = np.mean(snr < 1.0, axis=1, keepdims=True)
+                    bleed_persistence = np.mean(snr < 1.0, axis=1, keepdims=True)
                     persistent_bleed = bleed_persistence > 0.45  # ROUND 19: was 0.35 -- ROUND 17's masking, combined with the shifts=6 source-level fix above, was reported to slightly cut/distort the singer's voice. Since bleed is now attacked more effectively at the source (before this masking even runs), this stage can afford to back off from being maximally aggressive without giving up the bleed-removal gains.
                     mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 8.5), mask_steepness)  # ROUND 19: was 9.5
                     sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 3.5), sub_multiplier)  # ROUND 19: was 4.0
