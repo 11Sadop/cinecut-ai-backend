@@ -109,8 +109,17 @@ def _test_nvenc_available():
             # driver-capabilities env at all (platform-level, outside our
             # Dockerfile's control), missing NVENC codec support in this
             # ffmpeg build, or a genuinely different error.
-            err_tail = (res.stderr or b"").decode(errors="replace")[-400:]
-            print(f"⚠️ NVENC probe failed (returncode={res.returncode}): {err_tail}")
+            stderr_full = (res.stderr or b"").decode(errors="replace")
+            # ROUND 23: the earlier last-400-chars slice kept only the harmless
+            # "Stream mapping" line and RunPod's log ingestion cuts long lines --
+            # the real failure reason was never actually visible. Pick the most
+            # diagnostic single line instead (short enough to survive RunPod's
+            # per-line log truncation) so we can finally see WHY NVENC fails.
+            err_lines = [ln.strip() for ln in stderr_full.splitlines() if ln.strip()]
+            kw = ("rror", "ailed", "annot", "nsupported", "o capable", "device", "ncoder", "denied", "not found")
+            diag_lines = [ln for ln in err_lines if any(k in ln for k in kw)]
+            diag = diag_lines[-1] if diag_lines else (err_lines[-1] if err_lines else "no stderr")
+            print(f"NVENC FAIL rc={res.returncode} n={len(err_lines)}: {diag[:110]}")
         return ok
     except Exception as e_nvenc_probe:
         print(f"⚠️ NVENC probe raised exception: {e_nvenc_probe}")
