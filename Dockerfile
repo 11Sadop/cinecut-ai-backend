@@ -24,13 +24,36 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
 
-# Python 3.10 + ffmpeg + build tools
+# Python 3.10 + build tools (ffmpeg installed separately below --
+# ROUND 24 ROOT CAUSE: apt's ffmpeg package is a stock Ubuntu build
+# with NO nvenc encoder compiled into it at all -- no env var or
+# NVIDIA_DRIVER_CAPABILITIES setting could ever have made -c:v
+# h264_nvenc work through it. This is the actual reason every
+# upscale job silently, permanently fell back to slow CPU libx264:
+# the hardware encoder never existed in the binary in the first
+# place, confirmed live via a real RunPod job's NVENC probe log
+# ("Real-ESRGAN loaded on CUDA" -- proving the GPU/driver itself is
+# fine -- immediately followed by "NVENC probe failed").
 RUN apt-get update && apt-get install -y \
     python3.10 python3-pip python3.10-venv \
-    ffmpeg git build-essential \
+    git build-essential curl xz-utils \
     libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.10 /usr/bin/python
+
+# Static NVENC/CUDA-enabled ffmpeg build (BtbN/FFmpeg-Builds, GPL
+# linux64-gpl release), installed AT /usr/bin/ffmpeg -- the exact
+# path _find_ffmpeg() in ai_engine.py already checks first, so no
+# Python code change is needed; this just makes that path finally
+# point at a binary that actually has h264_nvenc built in.
+RUN curl -L -o /tmp/ffmpeg.tar.xz \
+    https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-linux64-gpl.tar.xz \
+    && mkdir -p /tmp/ffmpeg-extract \
+    && tar -xf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg-extract --strip-components=1 \
+    && cp /tmp/ffmpeg-extract/bin/ffmpeg /usr/bin/ffmpeg \
+    && cp /tmp/ffmpeg-extract/bin/ffprobe /usr/bin/ffprobe \
+    && chmod +x /usr/bin/ffmpeg /usr/bin/ffprobe \
+    && rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-extract
 
 WORKDIR /app
 
