@@ -781,9 +781,9 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     # needs to be instrument-dominant in >35% of frames, not >55%, to count as a
                     # persistent drone) and raising the boost ceiling higher (7.5->9.5, 3.0->4.0).
                     bleed_persistence = np.mean(snr < 1.0, axis=1, keepdims=True)
-                    persistent_bleed = bleed_persistence > 0.45  # ROUND 19: was 0.35 -- ROUND 17's masking, combined with the shifts=6 source-level fix above, was reported to slightly cut/distort the singer's voice. Since bleed is now attacked more effectively at the source (before this masking even runs), this stage can afford to back off from being maximally aggressive without giving up the bleed-removal gains.
-                    mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 8.5), mask_steepness)  # ROUND 19: was 9.5
-                    sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 3.5), sub_multiplier)  # ROUND 19: was 4.0
+                    persistent_bleed = bleed_persistence > 0.55  # ROUND 22: was 0.45 -- reported the singer's voice is STILL cutting even after ROUND 19's partial back-off. Since ROUND 19 also added shifts=6 (a genuine source-level bleed reduction that doesn't cost voice quality), this post-hoc masking stage no longer needs to compensate as hard -- reverting to ROUND 16's threshold (the last version confirmed to NOT damage voice) while keeping the shifts=6 improvement.
+                    mask_steepness = np.where(persistent_bleed, np.maximum(mask_steepness, 7.5), mask_steepness)  # ROUND 22: was 8.5, reverted to ROUND 16 level
+                    sub_multiplier = np.where(persistent_bleed, np.maximum(sub_multiplier, 3.0), sub_multiplier)  # ROUND 22: was 3.5, reverted to ROUND 16 level
                     # to-instrument ratio before it's let through at all).
                     mask = np.clip(1.0 - np.exp(-mask_steepness * (snr**2.0)), 0.0, 1.0)  # ROUND 14: frequency-dependent steepness (see band_gentle/mask_steepness above) -- was flat -4.5 everywhere, same root issue as the subtraction multiplier below.
 
