@@ -899,6 +899,26 @@ def _sync_separate_audio(raw_bytes: bytes, filename: str, resolution: str = "non
                     vocal_presence = np.clip(frame_snr / 5.0, 0.0, 1.0)
                     frame_gate = np.maximum(frame_gate, vocal_presence * 0.15)  # ROUND 13: was 0.3 -- REAL EVIDENCE this round: RunPod logs from a real job confirm this exact debleed function is the one actually running in production (not dead code), so ROUND12's rebalance really is why bleed came back. User: 'ما شال الموسيقى' (didn't remove the music) after ROUND12 dialed back too far from the vocal-corruption ROUND11 caused. This ROUND 13 splits the difference on all 5 debleed params between ROUND11's too-aggressive raw values and ROUND12's too-lenient rebalance -- moderate middle ground, still needs real user retest to fine-tune further since this can only be judged by ear.  # ROUND 9: was 0.15 -- that floor was exactly why bleed survived DURING singing (most of a song). User explicitly accepts more vocal-purity cost for full removal.
 
+                    # ROUND 26 FIX (reported AGAIN after ROUND22's constant revert,
+                    # confirmed live 21+ hours: singer's voice still cutting). Root
+                    # cause found by tracing the actual pipeline instead of re-tuning
+                    # constants again: frame_gate IS smoothed with a 5-tap moving
+                    # average above -- but that smoothing happens too early. The
+                    # line right above re-combines the already-smoothed gate with
+                    # vocal_presence, a RAW per-frame value with zero temporal
+                    # smoothing of its own. np.maximum() against an unsmoothed
+                    # signal can snap the final gate back to a sharp frame-to-frame
+                    # jump, silently undoing the earlier smoothing pass right before
+                    # the gate is actually used below -- exactly the kind of abrupt
+                    # gain change that sounds like clicking/cutting on playback.
+                    # Fix: re-smooth the FINAL combined gate (same moving-average
+                    # technique, widened from 5 to 9 taps / ~104ms -- still far
+                    # shorter than a sung syllable) right before it's applied, so
+                    # nothing downstream of this point can reintroduce a jump.
+                    if frame_gate.shape[0] >= 9:
+                        _gate_smooth_final = np.ones(9, dtype=np.float32) / 9.0
+                        frame_gate = np.convolve(frame_gate, _gate_smooth_final, mode='same')
+
                     Zv_clean = Zv_clean * frame_gate[np.newaxis, :]
 
                     _, clean_ch = scipy.signal.istft(Zv_clean, fs=sr_v, nperseg=2048, noverlap=1536)
