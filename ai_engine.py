@@ -301,6 +301,19 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
 
     src_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    # ROUND 25 FIX (reported: 120fps AI upscale on a tiny sample clip still
+    # took 9+ minutes even after ROUND24's real NVENC fix -- confirmed live).
+    # minterpolate's real motion-compensated interpolation is itself one of
+    # the most CPU-expensive ffmpeg filters that exists, entirely separate
+    # from encoding: synthesizing 120 real (non-duplicated) frames/sec via
+    # motion-vector search at 4K is inherently slow on any server, NVENC or
+    # not. No mainstream platform (YouTube/TikTok/Instagram) even plays back
+    # above 60fps, so 120 was pure cost with no visible benefit. Capping
+    # here (not just in the UI) protects every caller, including direct API
+    # requests that bypass the frontend's radio buttons.
+    if target_fps and target_fps > 60:
+        target_fps = 60
+
 
     # Pick the encoder ONCE, up front — avoids discovering NVENC is
     # unavailable only after already spending minutes on GPU inference.
