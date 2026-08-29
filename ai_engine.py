@@ -323,7 +323,19 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     # Interpolation, aobmc = adaptive overlapped block motion compensation)
     # — genuinely estimates and interpolates motion vectors between frames,
     # unlike a naive `fps=` filter which just duplicates/drops frames.
-    minterp = f"minterpolate=fps={target_fps}:mi_mode=mci:mc_mode=obmc:vsbmc=0" if target_fps > (src_fps + 0.5) else None  # ROUND 18 FIX: this used to run unconditionally even when target_fps already equalled (or was below) the source fps -- i.e. paying the full motion-compensated-interpolation cost for zero actual FPS gain. Confirmed root cause of duration complaints is really the CPU x264 4K encode (see venc_args comment below), but this filter was still pure wasted GPU/CPU work whenever no real interpolation was needed, and every bit counts. Only build the filter when we are actually increasing the frame rate.  # ROUND 2: was mi_mode=blend.
+    AI_FRAME_SKIP = True  # ROUND 28 (user-approved trade-off): the real cost is
+    # per-frame Real-ESRGAN inference at native resolution, not NVENC and not
+    # minterpolate itself (both already fixed/capped in ROUND24/25) -- traced
+    # via esrgan_engine.py's tiled RRDBNet loop. Running the real neural net on
+    # every 2nd source frame only, and reconstructing the skipped ones with the
+    # SAME real motion-compensated minterpolate filter already trusted here for
+    # FPS boosting (not naive duplication), roughly halves AI inference time.
+    # The piped stream is told it runs at half the real source fps; minterpolate
+    # then interpolates it back up to the real fps (or higher, if target_fps
+    # asks for an actual boost on top).
+    pipe_fps = (src_fps / 2.0) if AI_FRAME_SKIP else src_fps
+    minterp_target_fps = max(target_fps, src_fps) if AI_FRAME_SKIP else target_fps
+    minterp = f"minterpolate=fps={minterp_target_fps}:mi_mode=mci:mc_mode=obmc:vsbmc=0" if (AI_FRAME_SKIP or target_fps > (src_fps + 0.5)) else None
     # REPORTED AGAIN after switching to blend: "quality is bad" (رفع الجودة
     # سيئ). Root cause of the complaint: mi_mode=blend is not real motion-
     # compensated interpolation at all -- it is a plain weighted cross-
@@ -357,7 +369,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
 
     cmd = [
         FFMPEG_PATH, "-y",
-        "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{target_w}x{target_h}", "-r", str(src_fps),
+        "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{target_w}x{target_h}", "-r", str(pipe_fps),
         "-i", "pipe:0",
         "-i", input_path,
         "-map", "0:v:0", "-map", "1:a:0?",
@@ -382,12 +394,17 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=log_f)
 
     frame_count = 0
+    frame_skip_counter = 0
+    total_frames_effective = (total_frames // 2) if (AI_FRAME_SKIP and total_frames) else total_frames
     pipe_broke = False
     try:
         while True:
             ok, frame_bgr = cap.read()
             if not ok:
                 break
+            frame_skip_counter += 1
+            if AI_FRAME_SKIP and (frame_skip_counter % 2 == 0):
+                continue
             frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
             try:
                 up_rgb = esrgan_engine.upscale_frame_to_size(frame_rgb, target_w, target_h)
@@ -401,7 +418,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
                 break
             frame_count += 1
             if frame_count % 60 == 0:
-                print(f"   ...{frame_count}/{total_frames or '?'} frames upscaled")
+                print(f"   ...{frame_count}/{total_frames_effective or '?'} frames upscaled")
                 # Reports progress back through RunPod's job-tracking API so a
                 # genuinely long (tens-of-minutes) AI upscale doesn't fall out
                 # of RunPod's internal job bookkeeping before it finishes --
@@ -410,7 +427,7 @@ def _process_real_ai_upscale(input_path, output_path, target_w, target_h, target
                 # Request" after the GPU work had already completed).
                 if progress_cb:
                     try:
-                        progress_cb(frame_count, total_frames)
+                        progress_cb(frame_count, total_frames_effective)
                     except Exception:
                         pass
     finally:
